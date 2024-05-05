@@ -24,8 +24,6 @@ class Arctic(LLM):
                                  [HumanMessage(content="world")]])
     """
 
-    """The number of characters from the last message of the prompt to be echoed."""
-
     def _call(
         self,
         prompt: str,
@@ -37,8 +35,6 @@ class Arctic(LLM):
         **kwargs: Any,
     ) -> str:
         """Run the LLM on the given input.
-
-        Override this method to implement the LLM logic.
 
         Args:
             prompt: The prompt to generate from.
@@ -84,8 +80,6 @@ class Arctic(LLM):
         **kwargs: Any,
     ) -> Iterator[GenerationChunk]:
         """Stream the LLM on the given prompt.
-
-        This method should be overridden by subclasses that support streaming.
 
         If not implemented, the default behavior of calls to stream will be to
         fallback to the non-streaming version of the model and return
