@@ -7,7 +7,10 @@ from SQL.parse import extract_sql
 from SQL.manager import RdsManager 
 
 # App title
-st.set_page_config(page_title="Hackathon Project")
+st.set_page_config(
+    page_title="Nirvana",
+    page_icon="⛰️ ",
+)
 
 
 def main():
