@@ -44,7 +44,6 @@ class RdsManager():
         return schema_name
 
     def execute_sql(self, sql):
-        print("----------Made it here----------")
         try:
             self.cursor.execute(sql)
             print("SQL executed successfully!")
@@ -53,11 +52,10 @@ class RdsManager():
 
 
     def __exit__(self, exc_type, exc_value, traceback):
-        pass
-        # if self.cursor:
-        #     self.cursor.close()
-        # if self.conn:
-        #     self.conn.close()
-        # print("Database connection closed")
+        if self.cursor:
+            self.cursor.close()
+        if self.conn:
+            self.conn.close()
+        print("Database connection closed")
 
             

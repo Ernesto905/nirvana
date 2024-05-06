@@ -17,8 +17,9 @@ def main():
                     st.secrets.db_credentials.PORT,
                     st.secrets.db_credentials.USER,
                     st.secrets.db_credentials.PASS) as db:
-        db.create_user_schema("ernesto90643@gmail.com")
-        db.switch_user_schema("ernesto90643@gmail.com")
+        email = "ernesto90643@gmail.com"
+        db.create_user_schema(email)
+        db.switch_user_schema(email)
         get_replicate_api_token()
         init_chat_history()
         display_chat_messages()
@@ -116,7 +117,6 @@ def get_and_process_prompt(db):
 
     if "generated_sql" in st.session_state:
         if st.button("Execute SQL"):
-            print("---------Pressed button!---------")
             db.execute_sql(st.session_state.generated_sql)
 
 def generate_arctic_response():
@@ -161,13 +161,10 @@ def generate_arctic_response():
     content = st.session_state.messages[-1]["content"]
     sql = extract_sql(content)
 
-    print("Content is: \n\n", content)
-
     if sql:
-        print("---------Found sql!---------")
         st.write("Generated SQL:")
         st.code(sql, language="sql")
-        st.session_state.generated_sql = sql  # Store the generated SQL in session state
+        st.session_state.generated_sql = sql  
 
 if __name__ == "__main__":
     main()
