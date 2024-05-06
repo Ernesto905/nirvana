@@ -1,38 +1,52 @@
 import streamlit as st
 import replicate
 import os
-# from transformers import AutoTokenizer
+from transformers import AutoTokenizer
 
-from SQL.connect import connect_to_rds
-
+from SQL.parse import extract_sql
+from SQL.manager import RdsManager 
 
 # App title
 st.set_page_config(page_title="Hackathon Project")
 
 
 def main():
-    """Execution starts here."""
-    connect_to_rds(st.secrets.db_credentials.HOST, 
-                   st.secrets.db_credentials.PORT,
-                   st.secrets.db_credentials.USER,
-                   st.secrets.db_credentials.PASS)
-    get_replicate_api_token()
-    init_chat_history()
-    display_chat_messages()
-    get_and_process_prompt()
+
+    # RdsManager is a context manager for database connectivity throughout the program
+    with RdsManager(st.secrets.db_credentials.HOST, 
+                    st.secrets.db_credentials.PORT,
+                    st.secrets.db_credentials.USER,
+                    st.secrets.db_credentials.PASS) as db:
+        db.create_user_schema("ernesto90643@gmail.com")
+        db.switch_user_schema("ernesto90643@gmail.com")
+        get_replicate_api_token()
+        init_chat_history()
+        display_chat_messages()
+        get_and_process_prompt(db)
+
+
+
+
+    # """Execution starts here."""
+    # connect_to_rds(st.secrets.db_credentials.HOST, 
+    #                st.secrets.db_credentials.PORT,
+    #                st.secrets.db_credentials.USER,
+    #                st.secrets.db_credentials.PASS)
+    # get_replicate_api_token()
+    # init_chat_history()
+    # display_chat_messages()
+    # get_and_process_prompt()
 
 
 def get_replicate_api_token():
     os.environ["REPLICATE_API_TOKEN"] = st.secrets.api["REPLICATE_API_TOKEN"]
 
 
-
-
 def clear_chat_history():
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Please describe your data format and I'll generate a Database Schema for you.",
+            "content": "Please describe your data format and I'll generate a postgres sql table for you.",
         }
     ]
     st.session_state.chat_aborted = False
@@ -84,13 +98,14 @@ def abort_chat(error_message: str):
     st.rerun()
 
 
-def get_and_process_prompt():
+def get_and_process_prompt(db):
     """Get the user prompt and process it"""
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant", avatar="./public/MySql.jpg"):
             response = generate_arctic_response()
             st.write_stream(response)
+        
 
     if st.session_state.chat_aborted:
         st.button("Reset chat", on_click=clear_chat_history, key="clear_chat_history")
@@ -99,6 +114,10 @@ def get_and_process_prompt():
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
 
+    if "generated_sql" in st.session_state:
+        if st.button("Execute SQL"):
+            print("---------Pressed button!---------")
+            db.execute_sql(st.session_state.generated_sql)
 
 def generate_arctic_response():
     """String generator for the Snowflake Arctic response."""
@@ -131,14 +150,24 @@ def generate_arctic_response():
             input={
                 "prompt": prompt_str,
                 "prompt_template": r"{prompt}",
-                "temperature": st.session_state.temperature,
-                "top_p": st.session_state.top_p,
+                "temperature": 0.3,
+                "top_p": 0.9,
             },
         )
     ):
         st.session_state.messages[-1]["content"] += str(event)
         yield str(event)
 
+    content = st.session_state.messages[-1]["content"]
+    sql = extract_sql(content)
+
+    print("Content is: \n\n", content)
+
+    if sql:
+        print("---------Found sql!---------")
+        st.write("Generated SQL:")
+        st.code(sql, language="sql")
+        st.session_state.generated_sql = sql  # Store the generated SQL in session state
 
 if __name__ == "__main__":
     main()

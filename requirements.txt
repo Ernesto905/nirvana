@@ -4,3 +4,4 @@ transformers
 tensorflow
 python-dotenv
 psycopg[binaries] 
+re
