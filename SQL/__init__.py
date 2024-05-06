@@ -1,1 +1,1 @@
-print("I am database DUM DUM DUM!")
+from .connect import connect_to_rds

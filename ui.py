@@ -1,7 +1,10 @@
 import streamlit as st
 import replicate
 import os
-from transformers import AutoTokenizer
+# from transformers import AutoTokenizer
+
+from SQL.connect import connect_to_rds
+
 
 # App title
 st.set_page_config(page_title="Hackathon Project")
@@ -9,33 +12,20 @@ st.set_page_config(page_title="Hackathon Project")
 
 def main():
     """Execution starts here."""
+    connect_to_rds(st.secrets.db_credentials.HOST, 
+                   st.secrets.db_credentials.PORT,
+                   st.secrets.db_credentials.USER,
+                   st.secrets.db_credentials.PASS)
     get_replicate_api_token()
-    display_sidebar_ui()
     init_chat_history()
     display_chat_messages()
     get_and_process_prompt()
 
 
 def get_replicate_api_token():
-    os.environ["REPLICATE_API_TOKEN"] = st.secrets["REPLICATE_API_TOKEN"]
+    os.environ["REPLICATE_API_TOKEN"] = st.secrets.api["REPLICATE_API_TOKEN"]
 
 
-def display_sidebar_ui():
-    with st.sidebar:
-        st.title("Adjust Model Parameters")
-        st.slider(
-            "temperature",
-            min_value=0.01,
-            max_value=5.0,
-            value=0.3,
-            step=0.01,
-            key="temperature",
-        )
-        st.slider(
-            "top_p", min_value=0.01, max_value=1.0, value=0.9, step=0.01, key="top_p"
-        )
-
-        st.button("Clear chat history", on_click=clear_chat_history)
 
 
 def clear_chat_history():
