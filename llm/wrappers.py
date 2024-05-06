@@ -2,6 +2,7 @@ import replicate
 
 from typing import Any, Dict, Iterator, List, Optional
 
+from langchain_openai.chat_models import ChatOpenAI
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models.llms import LLM
 from langchain_core.outputs import GenerationChunk
@@ -143,3 +144,5 @@ if __name__ == "__main__":
     result = model.batch([[HumanMessage(content="what is your name?")],
                          [HumanMessage(content="hello my friend")]])
     print(result)
+
+GPT = ChatOpenAI
