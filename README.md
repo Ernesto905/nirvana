@@ -1,1 +1,1 @@
-# Artic-Hackathon-2024
+# Arctic-Hackathon-2024
