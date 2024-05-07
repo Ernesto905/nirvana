@@ -6,3 +6,4 @@ tensorflow
 python-dotenv
 psycopg[binaries] 
 pandas
+langchain
