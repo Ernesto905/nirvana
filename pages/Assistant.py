@@ -64,7 +64,7 @@ def init_chat_history():
 
 def display_chat_messages():
     # Set assistant icon to Snowflake logo
-    icons = {"assistant": "./public/MySql.jpg", "user": "⛷️"}
+    icons = {"assistant": "./public/PSQL.webp", "user": "⛷️"}
 
     # Display the messages
     for message in st.session_state.messages:
@@ -106,7 +106,7 @@ def get_and_process_prompt(db):
     """Get the user prompt and process it"""
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
-        with st.chat_message("assistant", avatar="./public/MySql.jpg"):
+        with st.chat_message("assistant", avatar="./public/PSQL.webp"):
             response = generate_arctic_response()
             st.write_stream(response)
         

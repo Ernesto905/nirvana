@@ -2,18 +2,14 @@ import streamlit as st
 import pandas as pd
 from SQL.manager import RdsManager
 
-def main():
-    st.title("Table Viewer")
+st.title("Table Viewer")
 
-    with RdsManager(st.secrets.db_credentials.HOST, 
-                    st.secrets.db_credentials.PORT,
-                    st.secrets.db_credentials.USER,
-                    st.secrets.db_credentials.PASS) as db:
-        db.switch_user_schema("ernesto90643@gmail.com")          
-        display_tables(db)
+
 
 def display_tables(db):
-    # Retrieve the list of tables in the user's schema
+
+    """Retrieve the list of tables in the user's schema"""
+
     db.cursor.execute("""
         SELECT table_name
         FROM information_schema.tables
@@ -45,5 +41,11 @@ def display_tables(db):
         # Display the DataFrame using Streamlit's table component
         st.table(df)
 
-if __name__ == "__main__":
-    main()
+with RdsManager(st.secrets.db_credentials.HOST, 
+                st.secrets.db_credentials.PORT,
+                st.secrets.db_credentials.USER,
+                st.secrets.db_credentials.PASS) as db:
+    db.switch_user_schema("ernesto90643@gmail.com")          
+    display_tables(db)
+
+
