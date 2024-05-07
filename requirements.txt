@@ -7,3 +7,4 @@ python-dotenv
 psycopg[binaries] 
 pandas
 langchain
+langchain_core
