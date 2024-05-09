@@ -5,6 +5,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def authenticate_jira(session):
+    get_authorization_url()
+
+
 def get_authorization_url():
     scopes = ['read%3Ajira-work', 'manage%3Ajira-project', 'manage%3Ajira-configuration']
     state = secrets.token_urlsafe(16)
@@ -20,10 +24,20 @@ def get_access_token(code):
         'client_id': os.getenv('JIRA_CLIENT_ID'),
         'client_secret': os.getenv('CLIENT_SECRET'),
         'code': code,
-        'redirect_uri': os.getenv('REDIRECT_URI')
+        'redirect_uri': "http://localhost:8501/Jira" 
     }
 
-    response = requests.post(token_url, data=data)
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
+    print("data is: ", data)
+
+    response = requests.post(token_url, json=data, headers=headers)
+    print('---------')
+    print("response is: ", response)
+    print('---------')
+    print("response text is: ", response.text)
     response.raise_for_status()
     access_token = response.json()['access_token']
 
