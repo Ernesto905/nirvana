@@ -73,9 +73,30 @@ class Chains:
             Given the following email, select one of the tables we may want to update given what is in the request. 
             If none of the tables are relevant, select 'NONE'.
 
-            Select one of: {options}
+            Select one of the following options: {options}
 
             User Email: {email}
+
+            Your response should ONLY be one of the options, and nothing else.
+            """
+        )
+        | Arctic()
+        | StrOutputParser()
+        | {"table": lambda x: x}
+    )
+
+    # Chain to make a choice about what our backend should do with the email
+    choice_chain = (
+        PromptTemplate.from_template(
+            _SYS_PROMPT +
+            """
+            Given the following email make a choice about what our backend should do with the email.
+
+            Email: {email}
+
+            Select one of the following options: {options}
+
+            Your response should ONLY be one of the numbers corresponding to the options, and nothing else.
             """
         )
         | Arctic()
@@ -83,59 +104,55 @@ class Chains:
     )
 
     # Chain to generate SQL code given a request and schema
-    sql_generator_chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT +
-            """You are an expert data engineer that is very proficient in Postgres SQL. Given the following user request
-            and the relevant table schema, generate the appropriate Postgres SQL code that would fulfill the user's request.
+    # sql_generator_chain = (
+    #     PromptTemplate.from_template(
+    #         _SYS_PROMPT +
+    #         """You are an expert data engineer that is very proficient in Postgres SQL. Given the following user request
+    #         and the relevant table schema, generate the appropriate Postgres SQL code that would fulfill the user's request.
 
-            Request: {request}
+    #         Request: {request}
 
-            Schema: {schema}
+    #         Schema: {schema}
 
-            Return only the SQL code that would fulfill the request, and nothing else, not even markdown code block triple backticks."""
-        )
-        | Arctic()
-        | StrOutputParser()
-    )
-
-    # db_chain = (
-    #     RunnableLambda(lambda x: f"Added {x} to the database.")
+    #         Return only the SQL code that would fulfill the request, and nothing else, not even markdown code block triple backticks."""
+    #     )
+    #     | Arctic()
+    #     | StrOutputParser()
     # )
 
-def select_agent(agents: list[Agent], request: str, selector: Arctic | GPT = Arctic):
-    """
-    Returns an agent among the list of agents that would be most
-    suitable to execute the provided request.
+# def select_agent(agents: list[Agent], request: str, selector: Arctic | GPT = Arctic):
+#     """
+#     Returns an agent among the list of agents that would be most
+#     suitable to execute the provided request.
 
-    Assumptions:
-    - Only ONE agent can be assigned to a request
-    - Only ONE request is being handled at a time
-    """
-    options = ["SELF"] + [agent.name for agent in agents]
+#     Assumptions:
+#     - Only ONE agent can be assigned to a request
+#     - Only ONE request is being handled at a time
+#     """
+#     options = ["SELF"] + [agent.name for agent in agents]
 
-    print(agents)
+#     print(agents)
 
-    router_chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT +
-            f"""
-            You are a supervisor, tasked with managing user requests while having access to the
-            following members on your team: {agents}.
+#     router_chain = (
+#         PromptTemplate.from_template(
+#             _SYS_PROMPT +
+#             f"""
+#             You are a supervisor, tasked with managing user requests while having access to the
+#             following members on your team: {agents}.
 
-            Given the following user request, classify it as being a request you could either fulfill yourself, or that
-            one of your team members could better handle. 
+#             Given the following user request, classify it as being a request you could either fulfill yourself, or that
+#             one of your team members could better handle. 
 
-            Select one of: {options}"""
-            + """
-            User Request: {request}
-            """
-        )
-        | selector()
-        | StrOutputParser()
-    )
+#             Select one of: {options}"""
+#             + """
+#             User Request: {request}
+#             """
+#         )
+#         | selector()
+#         | StrOutputParser()
+#     )
 
-    return router_chain.invoke({"request": request})
+#     return router_chain.invoke({"request": request})
 
 def get_table_context(table_name: str, email: str) -> dict:
     """
@@ -186,11 +203,13 @@ if __name__ == "__main__":
 
     # Chain that makes CRUD choice
     # Email -> Table Choice -> Extract relevant data -> CRUD choice
-    crud_choice_chain = (
+
+    table_choice_chain = (
         {"tables": itemgetter("tables"), "options": itemgetter("options"), "email": itemgetter("email")}
         | Chains.table_picker_chain
-        # | RunnableLambda(lambda x: get_table_context(x["table"], itemgetter("email")))
+        # | {"context": itemgetter("table") | RunnableLambda(lambda x: get_table_context(x, itemgetter("email")))}
+        # | Chains.choice_chain
         # | RunnableLambda(lambda x: f"Added {x} to the database.")
     )
 
-    print(crud_choice_chain.invoke({"email": email, "tables": table_info, "options": ["NONE"] + [table[0] for table in table_info]}))
+    print(table_choice_chain.invoke({"email": email, "tables": table_info, "options": ["NONE"] + [table[0] for table in table_info]}))
