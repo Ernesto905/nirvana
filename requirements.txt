@@ -4,6 +4,7 @@ replicate
 transformers
 tensorflow
 python-dotenv
+psycopg_binary
 psycopg[binaries]
 pandas
 langchain
