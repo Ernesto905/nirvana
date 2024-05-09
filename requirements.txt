@@ -11,3 +11,4 @@ langchain_core
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+jira
