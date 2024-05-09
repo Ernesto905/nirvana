@@ -1,4 +1,6 @@
 import streamlit as st
+from gmail.authentication import login, logout
+from gmail.messages import get_messages
 
 # Set page title and favicon
 st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:")
@@ -15,34 +17,52 @@ if not logged_in:
     login_button = st.button("Login with Google")
     if login_button:
         # Perform login logic here
-        st.session_state.logged_in = True
+        login(st.session_state)
         st.rerun()
 else:
     logout_button = st.button("Logout")
     if logout_button:
-        st.session_state.logged_in = False
+        logout(st.session_state)
         st.rerun()
 
 # Inbox section
 if logged_in:
     st.success("Logged in successfully!")
-    
+
     st.header("Inbox")
+
     search_query = st.text_input("Search emails", placeholder="Enter keywords")
+    if st.session_state.get("email_search_query", "") != search_query:
+        st.session_state["email_search_query"] = search_query
+        st.session_state["update_emails"] = True
+
+    emails_per_page = st.selectbox("Emails per page:", [10, 25, 50, 100])
+    if st.session_state.get("emails_per_page", "") != emails_per_page:
+        st.session_state["emails_per_page"] = emails_per_page
+        st.session_state["update_emails"] = True
+
     email_list = st.empty()
 
-    # Placeholder for email list
     with email_list.container():
+
+        # Prevent emails from being fetched multiple times
+        if not st.session_state.get("emails", None) or st.session_state.get("update_emails", False):
+            emails = get_messages(st.session_state, maxResults=emails_per_page, query=search_query)
+            st.session_state["emails"] = emails
+            st.session_state["update_emails"] = False
+        else:
+            emails = st.session_state["emails"]
+
         selected_email_indices = []
-        for i in range(10):  # Placeholder loop, replace with actual email data
+        for i in range(len(emails)):  # Placeholder loop, replace with actual email data
             col1, col2, col3 = st.columns([1, 3, 1])
             with col1:
                 if st.checkbox("Select", key=f"email_{i}"):
                     selected_email_indices.append(i)
             with col2:
-                st.write(f"Email {i+1} Subject")
-                st.write("Sender Name")
-                st.write("Email Preview...")
+                st.write(emails[i]["subject"])
+                st.write(emails[i]["from"])
+                st.write(emails[i].get("snippet", ""))
             with col3:
                 pdf_icon = ":page_facing_up:" if i % 2 == 0 else ""
                 spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
@@ -56,6 +76,7 @@ if logged_in:
     # Display selected email details
     with selected_email.container():
         if selected_email_indices:
+            emails = st.session_state["emails"]
             num_columns = 2
             num_rows = (len(selected_email_indices) + num_columns - 1) // num_columns
             for row in range(num_rows):
@@ -66,11 +87,11 @@ if logged_in:
                         email_index = selected_email_indices[index]
                         with columns[col]:
                             st.write(f"Email {email_index+1} Details")
-                            st.write("From: Sender Name")
-                            st.write("Subject: Email Subject")
+                            st.write(f"From: {emails[email_index]['from']}")
+                            st.write(f"Subject: {emails[email_index]['subject']}")
                             show_full_email = st.checkbox(f"Show Full Email {email_index+1}", key=f"show_full_email_{email_index}")
                             if show_full_email:
-                                st.write("Body: Email body content...")
+                                st.write(emails[email_index].get("body", ""))
                                 if email_index % 2 == 0:
                                     st.write(":page_facing_up: PDF Attachment")
                                 if email_index % 3 == 0:

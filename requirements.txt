@@ -4,7 +4,10 @@ replicate
 transformers
 tensorflow
 python-dotenv
-psycopg[binaries] 
+psycopg[binaries]
 pandas
 langchain
 langchain_core
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
