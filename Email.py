@@ -1,9 +1,19 @@
 import streamlit as st
+from streamlit_navigation_bar import st_navbar
 from gmail.authentication import login, logout
 from gmail.messages import get_messages
 
 # Set page title and favicon
 st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:")
+
+page = st_navbar(["Email", "Assistant", "Display Database", "Jira"])
+
+if page == "Assistant":
+    st.switch_page("pages/assistant.py")
+elif page == "Display Database":
+    st.switch_page("pages/display_db.py")
+elif page == "Jira":
+    st.switch_page("pages/jira.py")
 
 # App title and description
 st.title("Gmail Wrapper")

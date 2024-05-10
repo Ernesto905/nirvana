@@ -1,8 +1,16 @@
 import streamlit as st
+from streamlit_navigation_bar import st_navbar
 import pandas as pd
 from SQL.manager import RdsManager
 
-st.title("Table Viewer")
+page = st_navbar(["Email", "Assistant", "Display Database", "Jira"], selected="Display Database")
+
+if page == "Assistant":
+    st.switch_page("pages/assistant.py")
+elif page == "Jira":
+    st.switch_page("pages/jira.py")
+elif page == "Email":
+    st.switch_page("Email.py")
 
 def display_tables(db):
 
