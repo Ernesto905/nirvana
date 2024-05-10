@@ -6,10 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def authenticate_jira(session):
-    get_authorization_url()
-
-
 def get_authorization_url():
     scopes = ['read%3Ajira-work', 'manage%3Ajira-project', 'manage%3Ajira-configuration']
     state = secrets.token_urlsafe(16)
