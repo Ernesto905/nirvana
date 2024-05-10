@@ -4,8 +4,6 @@ from SQL.manager import RdsManager
 
 st.title("Table Viewer")
 
-
-
 def display_tables(db):
 
     """Retrieve the list of tables in the user's schema"""
@@ -47,5 +45,41 @@ with RdsManager(st.secrets.db_credentials.HOST,
                 st.secrets.db_credentials.PASS) as db:
     db.switch_user_schema("ernesto90643@gmail.com")          
     display_tables(db)
+    
+    # Check for Jira Auth
+    if st.button("sync with Jira"):
+        if 'access_token' not in st.session_state:
+            st.error("please authenticate with jira before continuing.")
+        else:
+            client = st.session_state.JiraClient
+            
+            with st.spinner("syncing Jira data..."):
+                try:
+                    # sync all three issue types
+                    epics = client.search_with_jql("issuetype = epic")
+                    tasks = client.search_with_jql("issuetype = task")
+                    bugs = client.search_with_jql("issuetype = bug")
+
+                    print("\n\n\nTHE EPICS ARE: ", epics)
+                    print("\n\n\nTHE tasks ARE: ", tasks)
+                    print("\n\n\nTHE bugs ARE: ", bugs)
+
+                    db.sync_jira(epics, 'epic')
+                    db.sync_jira(tasks, 'task')
+                    db.sync_jira(bugs, 'bug')
+                except Exception as e:
+                    st.error(f"Failed to sync: {e}")
+            
+            st.success("Jira data synced successfully!")
+
+
+
+
+
+
+
+
+
+
 
 

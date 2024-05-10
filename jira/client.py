@@ -34,7 +34,6 @@ class JiraClient:
         response.raise_for_status()
 
         data = response.json()
-        print("\n\n\ndata is: ", data)
         return json.dumps(data)
     
     def search_with_jql(self, jql):
@@ -52,7 +51,6 @@ class JiraClient:
         response.raise_for_status()
 
         data = response.json()
-        print("\n\n\ndata is: ", data)
         return json.dumps(data)
 
 

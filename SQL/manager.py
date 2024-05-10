@@ -1,4 +1,5 @@
 import psycopg
+import json
 
 class RdsManager():
     def __init__(self, host, port, user, password):
@@ -8,6 +9,7 @@ class RdsManager():
         self.password = password 
         self.conn = None 
         self.cursor = None
+
     def __enter__(self):
         try:
             # Connect to the PostgreSQL server
@@ -43,13 +45,63 @@ class RdsManager():
         schema_name = user_email.replace("@", "_").replace(".", "_")
         return schema_name
 
-    def execute_sql(self, sql):
+    def execute_sql(self, sql, values=None):
         try:
-            self.cursor.execute(sql)
+            self.cursor.execute(sql, values)
             print("SQL executed successfully!")
         except Exception as e:
             print(f"Error executing SQL: {str(e)}")
 
+    def sync_jira(self, issues, issue_type):
+        table_name = issue_type.capitalize() + 's'  # Determine the table name based on the issue type
+        issues = json.loads(issues)
+
+        # Initialize Issue tables
+        self.create_tables(table_name)
+
+        for issue in issues['issues']:
+            issue_id = issue['id']
+            project_key = issue['fields']['project']['key']
+            issue_key = issue['key']
+            summary = issue['fields']['summary']
+            description = issue['fields']['description']
+            status = issue['fields']['status']['name']
+            created_date = issue['fields']['created']
+            updated_date = issue['fields']['updated']
+            due_date = issue['fields']['duedate']
+
+            # Insert the issue data into the corresponding SQL table
+            sql = f"""
+            INSERT INTO {table_name} (IssueID, Summary, Description, Status, CreatedDate, UpdatedDate, DueDate)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (IssueID) DO UPDATE SET
+                Summary = EXCLUDED.Summary,
+                Description = EXCLUDED.Description,
+                Status = EXCLUDED.Status,
+                CreatedDate = EXCLUDED.CreatedDate,
+                UpdatedDate = EXCLUDED.UpdatedDate,
+                DueDate = EXCLUDED.DueDate;
+            """
+            values = (issue_id, summary, description, status, created_date, updated_date, due_date)
+            self.execute_sql(sql, values)
+
+    def create_tables(self, table_name):
+        create_table = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            IssueID VARCHAR(255) PRIMARY KEY,
+            Summary VARCHAR(255),
+            Description TEXT,
+            Status VARCHAR(255),
+            CreatedDate TIMESTAMP,
+            UpdatedDate TIMESTAMP,
+            DueDate DATE
+        );
+        """
+
+        # Drop tables first
+        self.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+
+        self.execute_sql(create_table)
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.cursor:
