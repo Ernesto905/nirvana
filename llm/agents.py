@@ -1,4 +1,5 @@
-from wrappers import Arctic, GPT
+from wrappers import Arctic
+from pydantic import BaseModel, Field
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
@@ -8,13 +9,14 @@ from langchain_core.prompts import (
 from langchain_core.runnables import RunnableLambda
 from operator import itemgetter
 
-from pydantic import BaseModel, Field
-
 _SYS_PROMPT = """
 System: You are working for the software app Nirvana, which helps users (often managers of teams)
 to manage their work and team members. Nirvana achieves this by providing a suite of tools and services, namely
 a service that intakes emails that the user receives, and processes them to update or create Jira tickets or issues,
-and provide other relevant insights if applicable.
+and provide other relevant insights if applicable. Specifically, we offer the following services:
+- Automated Jira ticket & issue creation or updates based on incoming email content
+- Intelligent insights and recommendations based on the user's Jira setup and incoming emails
+- Dynamic data aggregation from incoming emails storing important datapoints from emails and attachments
 
 Instructions:
 """
@@ -27,189 +29,230 @@ class Agent(BaseModel):
     def __str__(self):
         return self.name, self.description
 
-class Chains:
-    """Chains for each agent."""
+"""
+Chains:
+- Chain for Email in -> Decision about what to do with JIRA out [output: md list that we can parse]
+- Chain for Email + Decision in -> JIRA API call out (task / issue CRUD) [do this for every decision]
+- Chain for Email + Decision in -> List of information we can store for later out [output: md list that we can parse]
+- Chain for List of information in -> SQL query out
+"""
 
-    # Chain to directly query LLM
-    vanilla_chain = (
-        PromptTemplate.from_template(
-            "{request}"
-        )
-        | Arctic()
-        | StrOutputParser()
-    )
-
-    # Chain to select an agent
-    # Given agent, request, options, spit out one of options
-    router_chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT +
-            """
-            You are a supervisor, tasked with managing user requests while having access to the
-            following members on your team: {agents}.
-
-            Given the following user request, classify it as being a request you could either fulfill yourself, or that
-            one of your team members could better handle. 
-
-            Select one of: {options}
-
-            User Request: {request}
-            """
-        )
-        | Arctic()
-        | StrOutputParser()
-    )
-
-    # Chain to pick a table from a list of tables
-    # Given a list of table name and description tuples, email, options, pick one of options
-    table_picker_chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT +
-            """
-            You are tasked with picking one or none of a list of tables that are most relevant to a given context.
-
-            Tables: {tables}
-
-            Given the following email, select one of the tables we may want to update given what is in the request. 
-            If none of the tables are relevant, select 'NONE'.
-
-            Select one of the following options: {options}
-
-            User Email: {email}
-
-            Your response should ONLY be one of the options, and nothing else.
-            """
-        )
-        | Arctic()
-        | StrOutputParser()
-        | {"table": lambda x: x}
-    )
-
-    # Chain to make a choice about what our backend should do with the email
-    choice_chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT +
-            """
-            Given the following email make a choice about what our backend should do with the email.
-
-            Email: {email}
-
-            Select one of the following options: {options}
-
-            Your response should ONLY be one of the numbers corresponding to the options, and nothing else.
-            """
-        )
-        | Arctic()
-        | StrOutputParser()
-    )
-
-    # Chain to generate SQL code given a request and schema
-    # sql_generator_chain = (
-    #     PromptTemplate.from_template(
-    #         _SYS_PROMPT +
-    #         """You are an expert data engineer that is very proficient in Postgres SQL. Given the following user request
-    #         and the relevant table schema, generate the appropriate Postgres SQL code that would fulfill the user's request.
-
-    #         Request: {request}
-
-    #         Schema: {schema}
-
-    #         Return only the SQL code that would fulfill the request, and nothing else, not even markdown code block triple backticks."""
-    #     )
-    #     | Arctic()
-    #     | StrOutputParser()
-    # )
-
-# def select_agent(agents: list[Agent], request: str, selector: Arctic | GPT = Arctic):
-#     """
-#     Returns an agent among the list of agents that would be most
-#     suitable to execute the provided request.
-
-#     Assumptions:
-#     - Only ONE agent can be assigned to a request
-#     - Only ONE request is being handled at a time
-#     """
-#     options = ["SELF"] + [agent.name for agent in agents]
-
-#     print(agents)
-
-#     router_chain = (
-#         PromptTemplate.from_template(
-#             _SYS_PROMPT +
-#             f"""
-#             You are a supervisor, tasked with managing user requests while having access to the
-#             following members on your team: {agents}.
-
-#             Given the following user request, classify it as being a request you could either fulfill yourself, or that
-#             one of your team members could better handle. 
-
-#             Select one of: {options}"""
-#             + """
-#             User Request: {request}
-#             """
-#         )
-#         | selector()
-#         | StrOutputParser()
-#     )
-
-#     return router_chain.invoke({"request": request})
-
-def get_table_context(table_name: str, email: str) -> dict:
+def get_jira_actions(email: str, context: dict):
     """
-    Func that takes in a table and the user email, and 
-    fetches the most relevant context from the table, if any.
+    Given an email, a set of options of what our backend can do with JIRA,
+    and some context related to the user's current JIRA setup (projects, current issues, tasks, etc),
+    we need to make a decision about what to do with the JIRA API, if anything.
+
+    Assume context has the keys:
+    - "projects": List of JIRA project names
+    - "issues": List of JIRA issue keys
+    - "tasks": List of JIRA task keys
+    - "users": List of JIRA user keys
     """
 
-    return None
+    example_prompt = PromptTemplate(
+        input_variables=["email", "context", "actions"],
+        template="""
+        Email: {email}
+        Context: {context}
+        Actions: {actions}
+        """
+    )
+
+    examples = [{
+        "email": """
+        Subject: Urgent: Client Feedback on Project Falcon Deadline Adjustments
+        From: Jane Doe janedoe@clientdomain.com
+        Date: May 10, 2024
+        To: John Smith johnsmith@yourcompany.com
+        Dear John,
+        I hope this message finds you well. Following our recent discussions and the revisions to the project timelines that were agreed upon, I wanted to confirm the new delivery dates for Project Falcon. As per our last meeting, the final deliverable is now expected by June 30, 2024, instead of the previously set date of July 20, 2024.
+        Please acknowledge this email and update the project schedule accordingly. Additionally, we have noted some discrepancies in the last set of deliverables concerning the integration specifications. Could these be reviewed and addressed at the earliest?
+        Looking forward to your prompt action on these matters.
+        Best regards,
+        Jane Doe
+        Client Project Manager
+        ClientDomain.com
+            """,
+        "context": """
+        Project: Project Falcon
+        Status: In Progress
+        Key Issues:
+        Falcon-101: Draft initial project deliverables (Due: May 25, 2024)
+        Falcon-102: Review integration specifications (Due: June 10, 2024, Status: Pending Review)
+        Falcon-103: Finalize all deliverables (Original Due Date: July 20, 2024)
+        Epics:
+        Epic-001: Infrastructure Setup
+        Epic-002: Integration and Testing Phases
+        """,
+        "actions": """
+        - Update the due date of the task Falcon-103 to June 30, 2024, to reflect the new deadline communicated by the client.
+        - Create a new issue to address the discrepancies in the integration specifications mentioned by the client. Assign it to the relevant team member and prioritize it to ensure it's addressed before the next deliverable.
+        """
+    }, 
+    {
+        "email": """
+        Subject: 1:1 Meeting Agenda for May 12, 2024
+        From: John Smith
+        Date: May 10, 2024
+        To: Team Members
+        Hi Team,
+        I hope you're all doing well. I'd like to remind you about our upcoming 1:1 meetings scheduled for May 12, 2024. Please review the agenda items below and come prepared to discuss your progress, challenges, and any support you may need.
+        Agenda:
+        1. Project Updates
+        2. Roadblocks and Challenges
+        3. Support Needed
+        4. Any Other Business
+        Please confirm your availability for the meeting and let me know if you have any specific topics you'd like to discuss.
+        Looking forward to our discussions.
+        Best,
+        John
+        """,
+        "context": """
+        Project: Arctic Development
+        Status: Ongoing
+        Key Issues:
+        Arctic-221: Implement User Authentication (Due: May 15, 2024)
+        Arctic-232: Design Database Schema (Due: May 20, 2024) 
+        Project: Mobile App Launch
+        Status: Pending
+        Key Issues:
+        Mobile-101: Finalize UI Design (Due: May 30, 2024)
+        Mobile-102: Implement Push Notifications (Due: June 5, 2024)
+        """,
+        "actions": """
+            NONE
+        """
+    }
+    ]
+
+    prompt = FewShotPromptTemplate(
+        examples=examples,
+        example_prompt=example_prompt,
+        input_variables=["email", "context"],
+        suffix="Email: {email}\nContext: {context}\nActions:",
+        prefix=_SYS_PROMPT + """
+        Given the below email that the user just received, and some context in the user's JIRA,
+        what are some helpful actions that we can take with JIRA based on the email content? Identify
+        possible actions based on action items, deadlines, assignments, and other relevant information in the email,
+        and return a markdown list of the different actions we should take. Note that creating
+        entire projects is out of scope for this task. We are only concerned with updating or creating
+        epics, issues, and tasks, and assigning them to the appropriate team members.
+
+        If there are no actions to take, return "NONE". Otherwise, return a markdown formatted list of the actions.
+        The actions should only be actions that are specific and actionable in JIRA.
+        """
+    )   
+
+    # convert context to str because replicate api does not take kindly to curly braces!!!!!!!
+    def dict_to_str(d: dict):
+        return "\n".join([f"{k}: {v}" for k, v in d.items()])
+
+    context = dict_to_str(context)
+
+    chain = (
+        prompt
+        | Arctic()
+        | StrOutputParser()
+    )
+
+    return chain.invoke({"email": email, "context": context})
+
+def get_jira_api_call(email: str, decision: str, context: dict = {}):
+    """
+    Given an email, a decision about what to do with JIRA, and perhaps some context related to the user's JIRA setup,
+    we need to make a JIRA API call to create or update a JIRA issue or task.
+
+    Assume context has the keys:
+    - "projects": List of JIRA project names
+    - "issues": List of JIRA issue keys
+    - "tasks": List of JIRA task keys
+    - "users": List of JIRA user keys
+    """
+
+    chain = (
+        PromptTemplate.from_template(
+            _SYS_PROMPT + """
+                balling
+            """
+        )
+        | Arctic()
+        | StrOutputParser()
+    )
+
+    return chain.invoke({"email": email, "decision": decision, "context": context})
+
+def extract_information(email: str, decision: str, context: dict = {}):
+    """
+    Given an email, a decision about what to do with JIRA, and perhaps some context related to the user's JIRA setup,
+    we need to extract relevant information from the email to store for later use.
+
+    Assume context has the keys:
+    - "projects": List of JIRA project names
+    - "issues": List of JIRA issue keys
+    - "tasks": List of JIRA task keys
+    - "users": List of JIRA user keys
+    """
+
+    chain = (
+        PromptTemplate.from_template(
+            _SYS_PROMPT + """
+                Given the below email that the user just received, and some context in the user's JIRA,
+                is there any information that we can extract for later analysis or use as far as 
+                recommendations or insights in the app go?
+
+                Email: {email}
+
+                Context: {context}
+
+                If there is information to extract, return a markdown list of the information.
+                Otherwise, return "NONE".
+            """
+        )
+        | Arctic()
+        | StrOutputParser()
+    )
+
+    return chain.invoke({"email": email}, {"context": context})
 
 if __name__ == "__main__":
 
     email = """
-        Subject: Revision Needed for Upcoming Release Specifications
+        Subject: Urgent: High Latency Issue Detected in Ride API
 
-        Hi Michael,
+        From: system_monitoring@ridecompany.com
 
-        I hope this message finds you well. As we approach the final stages of our current sprint, I've reviewed the specifications for the upcoming release and noticed some discrepancies that could affect our projected timeline and feature set.
+        Date: May 10, 2024, 09:15 AM
 
-        Specifically, the parameters for the new search functionality do not align with the initial requirements discussed in our last sprint planning meeting. This might lead to potential roadblocks for the QA team and impact the user experience.
+        To: john.doe@ridecompany.com
 
-        Could you please take a moment to review and adjust the relevant details? Ensuring these are in line with our objectives will be crucial for meeting our milestones without any delays.
+        Dear John,
 
-        Thank you for looking into this at your earliest convenience.
+        We have detected an unexpected spike in latency on the Ride API today at 08:45 AM, with response times exceeding 500ms, which is beyond the acceptable threshold of 200ms. This issue appears to be impacting multiple endpoints, particularly those handling ride booking requests.
 
-        Best regards,
+        Initial Findings:
 
-        Vanessa
-        Software Development Team
+        The latency spike correlates with a significant increase in ride booking requests.
+        Preliminary logs indicate possible database bottlenecks.
+        Impact:
 
+        Increased customer complaints about app responsiveness.
+        Potential drop in user satisfaction and increased churn risk.
+        Please address this as a priority.
+
+        Best Regards,
+        System Monitoring Team
+        Ride Company
     """
 
-    # 1. TABLE-PICKER Agent: Given a list of table, table description tuples, and context, pick
-    # one or none of the tables that are most relevant to the context.
-    # if ONE -> return the table name, update that table (add row or edit row or delete row)
-    # if NONE -> create a new table, infer the columns and table name
-    # 2. FINDER Agent: Given some context and a table schema, find the most relevant data in the database
-    # x. DECIDER Agent: Decide the operation to be performed on the database
+    context = {
+        "projects": ["Ride Operations", "API Development", "Customer Service Platform"],
+        "issues": ["Ride-142: Ride API Latency Over 300ms Last Quarter", 
+                   "Ride-198: Database Optimization for Scalability", 
+                   "CUST-77: Customer Complaints on App Responsiveness"],
+        "recent updates": ["RIDE-198 updated yesterday with new DB schema proposals.",
+                           "CUST-77 has a scheduled review today to discuss recent feedback trends."],
+        "users": ["john.doe", "jane.smith", "admin"]
+    }
 
-    # given the email -> decide table
-    table_info = [
-        ("users", "A table that stores user information"),
-        ("tickets", "A table that stores ticket information"),
-        ("issues", "A table that stores issue information"),
-        ("emails", "A table that stores email information"),
-        ("projects", "A table that stores project information"),
-        ("employees", "A table that stores information about employees on the team")
-    ]
-
-    # Chain that makes CRUD choice
-    # Email -> Table Choice -> Extract relevant data -> CRUD choice
-
-    table_choice_chain = (
-        {"tables": itemgetter("tables"), "options": itemgetter("options"), "email": itemgetter("email")}
-        | Chains.table_picker_chain
-        # | {"context": itemgetter("table") | RunnableLambda(lambda x: get_table_context(x, itemgetter("email")))}
-        # | Chains.choice_chain
-        # | RunnableLambda(lambda x: f"Added {x} to the database.")
-    )
-
-    print(table_choice_chain.invoke({"email": email, "tables": table_info, "options": ["NONE"] + [table[0] for table in table_info]}))
+    print(get_jira_actions(email, context))
