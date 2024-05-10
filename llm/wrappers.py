@@ -135,7 +135,9 @@ class Arctic(LLM):
         """Get the type of language model used by this chat model. Used for logging purposes only."""
         return "custom"
 
+GPT = ChatOpenAI
 
+# Example usage of LangChain Arctic wrapper
 if __name__ == "__main__":
     from langchain_core.messages import HumanMessage
     model = Arctic()
@@ -145,4 +147,3 @@ if __name__ == "__main__":
                          [HumanMessage(content="hello my friend")]])
     print(result)
 
-GPT = ChatOpenAI
