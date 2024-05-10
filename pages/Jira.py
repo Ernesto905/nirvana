@@ -6,10 +6,10 @@ if 'access_token' not in st.session_state:
     if 'auth_state' not in st.session_state or 'code' in st.query_params:
         if 'code' in st.query_params:
             authorization_code = st.query_params['code']
+            st.query_params.clear()
             access_token = get_access_token(authorization_code)
 
             st.session_state['access_token'] = access_token
-            st.query_params.clear()
 
             st.rerun()
         else:
@@ -22,3 +22,4 @@ if 'access_token' not in st.session_state:
 else:
     st.success("Successfully Authenticated")
     access_token = st.session_state['access_token']
+
