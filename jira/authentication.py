@@ -1,4 +1,5 @@
 import os
+import json
 import secrets
 import requests
 from dotenv import load_dotenv
@@ -31,14 +32,27 @@ def get_access_token(code):
         'Content-Type': 'application/json'
     }
 
-    print("data is: ", data)
 
     response = requests.post(token_url, json=data, headers=headers)
-    print('---------')
-    print("response is: ", response)
-    print('---------')
-    print("response text is: ", response.text)
     response.raise_for_status()
     access_token = response.json()['access_token']
 
     return access_token
+
+def get_cloudid(access_token):
+    resource_url = "https://api.atlassian.com/oauth/token/accessible-resources"
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {access_token}'
+    }
+
+    response = requests.get(resource_url, headers=headers)
+    response.raise_for_status()
+
+    # Bit of a misnomer. response_json type is actually a list
+    response_json = response.json()
+
+    return response_json[0]["id"]
+
+
+    
