@@ -33,12 +33,29 @@ class JiraClient:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
 
-        print("\n\n\nresponse is: ", response)
-        print("\n\n\nresponse text is: ", response.text)
+        data = response.json()
+        print("\n\n\ndata is: ", data)
+        return json.dumps(data)
+    
+    def search_with_jql(self, jql):
+        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.search_api_path}"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json"
+        }
+
+        params = {
+            "jql" : jql
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
 
         data = response.json()
         print("\n\n\ndata is: ", data)
         return json.dumps(data)
+
+
 
     
 
