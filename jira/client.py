@@ -5,11 +5,13 @@ class JiraClient:
     def __init__(self, cloud_id, access_token):
         self.cloud_id = cloud_id  
         self.access_token = access_token
-        self.api_path = "/rest/api/2/project"
+
+        self.project_api_path = "/rest/api/2/project"
+        self.search_api_path = "/rest/api/2/search"
 
 
     def projects(self):
-        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.api_path}"
+        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.project_api_path}"
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json"
@@ -20,6 +22,25 @@ class JiraClient:
 
         data = response.json()
         return data
+    
+    def get_all_issues(self):
+        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.search_api_path}"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json"
+        }
+
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        print("\n\n\nresponse is: ", response)
+        print("\n\n\nresponse text is: ", response.text)
+
+        data = response.json()
+        print("\n\n\ndata is: ", data)
+        return json.dumps(data)
+
+    
 
 
 

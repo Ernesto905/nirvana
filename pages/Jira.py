@@ -1,6 +1,7 @@
 import streamlit as st
 from jira.authentication import *
 from jira.client import JiraClient
+import json 
 
 # Check if the user has already authenticated
 if 'access_token' not in st.session_state:
@@ -26,6 +27,31 @@ else:
     cloud_id = get_cloudid(access_token)
 
     st.session_state.JiraClient = JiraClient(cloud_id, access_token)
+    client = st.session_state.JiraClient
+
+
+    if st.button("Get all issues!"):
+        issues_json = client.get_all_issues()
+        issues = json.loads(issues_json)
+        
+        for issue in issues['issues']:
+            issue_key = issue['key']
+            issue_summary = issue['fields']['summary']
+            issue_description = issue['fields']['description'] or 'No description available'
+            issue_status = issue['fields']['status']['name']
+            issue_priority = issue['fields']['priority']['name']
+            issue_assignee = issue['fields']['assignee']['displayName'] if issue['fields']['assignee'] else 'Unassigned'
+            issue_created = issue['fields']['created']
+            
+            with st.expander(f"{issue_key}: {issue_summary}"):
+                st.write(f"**Description:** {issue_description}")
+                st.write(f"**Status:** {issue_status}")
+                st.write(f"**Priority:** {issue_priority}")
+                st.write(f"**Assignee:** {issue_assignee}")
+                st.write(f"**Created:** {issue_created}")
+
+
+
 
 
 
