@@ -8,6 +8,7 @@ class RdsManager():
         self.password = password 
         self.conn = None 
         self.cursor = None
+
     def __enter__(self):
         try:
             # Connect to the PostgreSQL server
