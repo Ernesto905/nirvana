@@ -14,7 +14,7 @@ st.header("Authentication")
 logged_in = st.session_state.get("logged_in", False)
 
 if not logged_in:
-    login_button = st.button("Login with Google")
+    login_button = st.button("Login with Google :key:")
     if login_button:
         # Perform login logic here
         login(st.session_state)

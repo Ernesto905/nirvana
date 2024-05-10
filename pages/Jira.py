@@ -22,7 +22,46 @@ if 'access_token' not in st.session_state:
         else:
             authorization_url, state = get_authorization_url()
             st.session_state['auth_state'] = state
-            st.markdown(f'<a href="{authorization_url}" target="_self">Click here to authenticate with Jira</a>', unsafe_allow_html=True)
+
+
+
+
+
+            # st.markdown(f'<a href="{authorization_url}" target="_self">Click here to authenticate with Jira</a>', unsafe_allow_html=True)
+# css styling for the button
+# CSS styling for the button
+            button_style = """
+                <style>
+                .custom-button {
+                    display: inline-block;
+                    padding: 0.75rem 1.5rem;
+                    background-color: #8B6969;
+                    color: #FFF8F3;
+                    text-decoration: none;
+                    border-radius: 0.25rem;
+                    font-weight: bold;
+                    transition: background-color 0.3s;
+                    font-family: serif;
+                    border: none;
+                    cursor: pointer;
+                    font-size: 1.1rem;
+                }
+                .custom-button:hover {
+                    background-color: #A08080;
+                }
+                .custom-button:active {
+                    background-color: #6B4F4F;
+                }
+                </style>
+            """
+
+# Display the button with custom styling
+            button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button">Authenticate with Jira</button></a>'
+            st.markdown(button_style + button_html, unsafe_allow_html=True)
+
+
+
+
             redirecting = True
 
     elif redirecting == True: 
