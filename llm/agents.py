@@ -1,15 +1,11 @@
 from wrappers import Arctic
 from pydantic import BaseModel, Field
 
-from langchain.agents import AgentExecutor, create_react_agent
-
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     PromptTemplate,
     FewShotPromptTemplate
 )
-from langchain_core.runnables import RunnableLambda
-from operator import itemgetter
 from ast import literal_eval
 
 _SYS_PROMPT = """
