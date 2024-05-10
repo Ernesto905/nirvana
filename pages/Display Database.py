@@ -60,10 +60,6 @@ with RdsManager(st.secrets.db_credentials.HOST,
                     tasks = client.search_with_jql("issuetype = task")
                     bugs = client.search_with_jql("issuetype = bug")
 
-                    print("\n\n\nTHE EPICS ARE: ", epics)
-                    print("\n\n\nTHE tasks ARE: ", tasks)
-                    print("\n\n\nTHE bugs ARE: ", bugs)
-
                     db.sync_jira(epics, 'epic')
                     db.sync_jira(tasks, 'task')
                     db.sync_jira(bugs, 'bug')
