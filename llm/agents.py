@@ -1,6 +1,8 @@
 from wrappers import Arctic
 from pydantic import BaseModel, Field
 
+from langchain.agents import AgentExecutor, create_react_agent
+
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     PromptTemplate,
@@ -8,6 +10,7 @@ from langchain_core.prompts import (
 )
 from langchain_core.runnables import RunnableLambda
 from operator import itemgetter
+from ast import literal_eval
 
 _SYS_PROMPT = """
 System: You are working for the software app Nirvana, which helps users (often managers of teams)
@@ -15,8 +18,8 @@ to manage their work and team members. Nirvana achieves this by providing a suit
 a service that intakes emails that the user receives, and processes them to update or create Jira tickets or issues,
 and provide other relevant insights if applicable. Specifically, we offer the following services:
 - Automated Jira ticket & issue creation or updates based on incoming email content
-- Intelligent insights and recommendations based on the user's Jira setup and incoming emails
 - Dynamic data aggregation from incoming emails storing important datapoints from emails and attachments
+- Intelligent analysis, insights, and recommendations based on the stored data 
 
 Instructions:
 """
@@ -37,7 +40,8 @@ Chains:
 - Chain for List of information in -> SQL query out
 """
 
-def get_jira_actions(email: str, context: dict):
+# JIRA Features
+def get_jira_actions(email: str, context: dict) -> dict:
     """
     Given an email, a set of options of what our backend can do with JIRA,
     and some context related to the user's current JIRA setup (projects, current issues, tasks, etc),
@@ -86,8 +90,8 @@ def get_jira_actions(email: str, context: dict):
         Epic-002: Integration and Testing Phases
         """,
         "actions": """
-        - Update the due date of the task Falcon-103 to June 30, 2024, to reflect the new deadline communicated by the client.
-        - Create a new issue to address the discrepancies in the integration specifications mentioned by the client. Assign it to the relevant team member and prioritize it to ensure it's addressed before the next deliverable.
+        ["Update the due date of the task Falcon-103 to June 30, 2024, to reflect the new deadline communicated by the client.",
+        "Create a new issue to address the discrepancies in the integration specifications mentioned by the client. Assign it to the relevant team member and prioritize it to ensure it's addressed before the next deliverable."]
         """
     }, 
     {
@@ -135,14 +139,14 @@ def get_jira_actions(email: str, context: dict):
         Given the below email that the user just received, and some context in the user's JIRA,
         what are some helpful actions that we can take with JIRA based on the email content? Identify
         possible actions based on action items, deadlines, assignments, and other relevant information in the email,
-        and return a markdown list of the different actions we should take. Note that creating
+        and return a Python list of the different actions we should take. Note that creating
         entire projects is out of scope for this task. We are only concerned with updating or creating
         epics, issues, and tasks, and assigning them to the appropriate team members.
 
-        If there are no actions to take, return "NONE". Otherwise, return a markdown formatted list of the actions.
+        If there are no actions to take, return "NONE". Otherwise, return a Python formatted list of the actions.
         The actions should only be actions that are specific and actionable in JIRA.
         """
-    )   
+    )
 
     # convert context to str because replicate api does not take kindly to curly braces!!!!!!!
     def dict_to_str(d: dict):
@@ -156,11 +160,18 @@ def get_jira_actions(email: str, context: dict):
         | StrOutputParser()
     )
 
-    return chain.invoke({"email": email, "context": context})
+    result = chain.invoke({"email": email, "context": context})
 
-def get_jira_api_call(email: str, decision: str, context: dict = {}):
+    if result.strip().upper() == "NONE":
+        output = []
+    else:
+        output = literal_eval(result)
+
+    return {"actions": output}
+
+def get_jira_api_call(email: str, decision: str, context: dict):
     """
-    Given an email, a decision about what to do with JIRA, and perhaps some context related to the user's JIRA setup,
+    Given an email, a decision about what to do with JIRA, and context related to the user's JIRA setup,
     we need to make a JIRA API call to create or update a JIRA issue or task.
 
     Assume context has the keys:
@@ -182,10 +193,11 @@ def get_jira_api_call(email: str, decision: str, context: dict = {}):
 
     return chain.invoke({"email": email, "decision": decision, "context": context})
 
-def extract_information(email: str, decision: str, context: dict = {}):
+# Unified Database Features
+def extract_features(email: str, schema: str) -> dict:
     """
-    Given an email, a decision about what to do with JIRA, and perhaps some context related to the user's JIRA setup,
-    we need to extract relevant information from the email to store for later use.
+    Given an email, and what our current database looks like, we need to decide what information to extract
+    and remember from the email for later analysis or use as far as recommendations or insights in the app go.
 
     Assume context has the keys:
     - "projects": List of JIRA project names
@@ -194,26 +206,118 @@ def extract_information(email: str, decision: str, context: dict = {}):
     - "users": List of JIRA user keys
     """
 
+    prefix = """
+    You are an assistant working on the data aggregation and analysis module of the Nirvana app. 
+    Your task is to extract relevant information from the incoming email and store it in the database for future analysis and insights. 
+    This involves identifying key data points from the email, deciding what would be relevant for providing future recommendations or insights,
+    and storing this information in the database based on the provided schema. Note that data about projects, issues, tasks, and users are already stored in the database, so specific JIRA-related information should not be extracted as it would be redundant.
+    Rather, focus on extracting details from the emails, such as dates, names, changes, patterns, or any other relevant information that could be useful for future analysis or recommendations.
+
+    Given the below email, and what our database currently looks like,
+    return a list of SQL statements that will be executed consecutively to store the extracted information in the database.
+    Be mindful of existing tables. If a table does not exist and you believe we should create it (and, critically, it will be used later!), create it. 
+    If a table needs to be modified, modify it. You can take liberties here - but be mindful of the fact that 
+    the SQL statements should be valid and executable, and will be executed in the order you provide them.
+
+    Return the statements in Python strings in a Python list. If no information needs to be stored, return an empty list.
+    """
+
+    example_prompt = PromptTemplate(
+        input_variables=["email", "schema", "extracted_information"],
+        template="""
+        Email: {email}
+        Schema: {schema}
+        Extracted Information: {extracted_information}
+        """
+    )
+
+    examples = [{
+        "email": """
+        Subject: Urgent: Client Feedback on Project Falcon Deadline Adjustments
+        From: Jane Doe janedoe@clientdomain.com
+        Date: May 10, 2024
+        To: John Smith johnsmith@yourcompany.com
+        Dear John,
+        I hope this message finds you well. Following our recent discussions and the revisions to the project timelines that were agreed upon, I wanted to confirm the new delivery dates for Project Falcon. As per our last meeting, the final deliverable is now expected by June 30, 2024, instead of the previously set date of July 20, 2024.
+        Please acknowledge this email and update the project schedule accordingly. Additionally, we have noted some discrepancies in the last set of deliverables concerning the integration specifications. Could these be reviewed and addressed at the earliest?
+        Looking forward to your prompt action on these matters.
+        Best regards,
+        Jane Doe
+        Client Project Manager
+        ClientDomain.com
+            """,
+        "schema": """
+        Table: Client Feedback
+        Columns:
+        - sender: VARCHAR(255)
+        - date: DATE
+        - subject: VARCHAR(255)
+        - message: TEXT
+        - recipient: VARCHAR(255)
+        """,
+        "extracted_information": """
+        ["INSERT INTO Client_Feedback (sender, date, subject, message, recipient) VALUES ('
+        Jane Doe', '2024-05-10', 'Urgent: Client Feedback on Project Falcon Deadline Adjustments',
+        'Following our recent discussions and the revisions to the project timelines that were agreed upon, I wanted to confirm the new delivery dates for Project Falcon. As per our last meeting, the final deliverable is now expected by June 30, 2024, instead of the previously set date of July 20, 2024. Please acknowledge this email and update the project schedule accordingly. Additionally, we have noted some discrepancies in the last set of deliverables concerning the integration specifications. Could these be reviewed and addressed at the earliest? Looking forward to your prompt action on these matters. Best regards, Jane Doe Client Project Manager ClientDomain.com', 'John Smith')",
+        "CREATE TABLE IF NOT EXISTS Date_Changes (date DATE, project VARCHAR(255), new_date DATE, previous_date DATE)",
+        "INSERT INTO Date_Changes (date, project, new_date, previous_date) VALUES ('2024-05-10', 'Project Falcon', '2024-06-30', '2024-07-20')",
+        ]
+        """
+    }, 
+    {    
+        "email": """
+        Subject: Revised Budget Estimates for Project Mercury
+        From: Alice Johnson alicejohnson@vendor.com
+        Date: May 15, 2024
+        To: Sara White sarawhite@yourcompany.com
+        Hello Sara,
+        After reviewing the latest project requirements and consulting with our finance department, we've come up with a revised budget for Project Mercury. The total budget now stands at $320,000, which is a 15% increase from the original estimate of $280,000 due to additional licensing fees.
+        Please find attached the detailed budget breakdown and let us know if there are any further adjustments needed.
+        Thank you for your cooperation.
+        Best,
+        Alice Johnson
+        Account Manager
+        Vendor.com
+        """,
+        "schema": """
+        Table: Project Budgets
+        Columns:
+        - sender: VARCHAR(255)
+        - date: DATE
+        - project: VARCHAR(255)
+        - original_budget: DECIMAL(10, 2)
+        - revised_budget: DECIMAL(10, 2)
+        - message: TEXT
+        - recipient: VARCHAR(255)
+        """,
+        "extracted_information": """
+        ["INSERT INTO Project_Budgets (sender, date, project, original_budget, revised_budget, message, recipient) VALUES ('
+        Alice Johnson', '2024-05-15', 'Project Mercury', 280000, 320000,
+        'After reviewing the latest project requirements and consulting with our finance department, we've come up with a revised budget for Project Mercury. The total budget now stands at $320,000, which is a 15% increase from the original estimate of $280,000 due to additional licensing fees. Please find attached the detailed budget breakdown and let us know if there are any further adjustments needed. Thank you for your cooperation. Best, Alice Johnson Account Manager Vendor.com', 'Sara White')",
+        "CREATE TABLE IF NOT EXISTS Budget_Changes (date DATE, project VARCHAR(255), original_budget DECIMAL(10, 2), revised_budget DECIMAL(10, 2))",
+        "INSERT INTO Budget_Changes (date, project, original_budget, revised_budget) VALUES ('2024-05-15', 'Project Mercury', 280000, 320000)",
+        ]
+        """
+    }]
+
+    prompt = FewShotPromptTemplate(
+        examples=examples,
+        example_prompt=example_prompt,
+        input_variables=["email", "schema"],
+        suffix="Email: {email}\nSchema: {schema}\nExtracted Information:",
+        prefix=prefix
+    )
+
     chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT + """
-                Given the below email that the user just received, and some context in the user's JIRA,
-                is there any information that we can extract for later analysis or use as far as 
-                recommendations or insights in the app go?
-
-                Email: {email}
-
-                Context: {context}
-
-                If there is information to extract, return a markdown list of the information.
-                Otherwise, return "NONE".
-            """
-        )
+        prompt
         | Arctic()
         | StrOutputParser()
     )
 
-    return chain.invoke({"email": email}, {"context": context})
+    output = chain.invoke({"email": email, "schema": schema})
+
+    return {"extracted_information": literal_eval(output)}
+
 
 if __name__ == "__main__":
 
@@ -255,4 +359,20 @@ if __name__ == "__main__":
         "users": ["john.doe", "jane.smith", "admin"]
     }
 
-    print(get_jira_actions(email, context))
+    actions = get_jira_actions(email, context)
+
+    print("==Suggested actions==\n\n", actions["actions"])
+
+    extracted_info = extract_features(email, """
+        Table: System Alerts
+        Columns:
+        - sender: VARCHAR(255)
+        - date: DATE
+        - subject: VARCHAR(255)
+        - message: TEXT
+        - recipient: VARCHAR(255)
+        - impact: TEXT
+        - findings: TEXT
+    """)
+    print("==Extracted Information==\n\n", extracted_info["extracted_information"])
+
