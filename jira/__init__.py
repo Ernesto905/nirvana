@@ -1,1 +1,2 @@
-from .authentication import get_authorization_url, get_access_token 
+from .authentication import *
+from .client import JiraClient
