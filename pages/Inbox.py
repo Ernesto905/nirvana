@@ -1,39 +1,14 @@
 import streamlit as st
-from streamlit_navigation_bar import st_navbar
-from gmail.authentication import login, logout
 from gmail.messages import get_messages
 
 # Set page title and favicon
 st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:", layout="wide")
 
-page = st_navbar(["Email", "Assistant", "Display Database", "Jira"])
-
-if page == "Assistant":
-    st.switch_page("pages/assistant.py")
-elif page == "Display Database":
-    st.switch_page("pages/display_db.py")
-elif page == "Jira":
-    st.switch_page("pages/jira.py")
-
 # App title and description
 st.title("Gmail Wrapper")
 st.write("Access and manage your Gmail inbox with ease.")
 
-# Authentication section
-st.header("Authentication")
 logged_in = st.session_state.get("logged_in", False)
-
-if not logged_in:
-    login_button = st.button("Login with Google :key:")
-    if login_button:
-        # Perform login logic here
-        login(st.session_state)
-        st.rerun()
-else:
-    logout_button = st.button("Logout")
-    if logout_button:
-        logout(st.session_state)
-        st.rerun()
 
 # Inbox section
 if logged_in:
