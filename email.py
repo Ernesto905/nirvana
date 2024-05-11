@@ -96,7 +96,7 @@ if logged_in:
                     selected_email_indices.append(i)
             with col2:
                 st.write(f"**{emails[i]['from']}**")
-                st.write(emails[i]["date"])
+                st.write(f"{emails[i]['date']['month']} {emails[i]['date']['day']}")
                 st.write(emails[i]["subject"])
                 st.write(emails[i].get("snippet", ""))
             with col3:
