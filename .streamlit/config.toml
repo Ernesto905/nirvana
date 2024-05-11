@@ -6,5 +6,3 @@ textColor = "#483434"
 font = "serif"
 
 
-[client]
-showSidebarNavigation = false

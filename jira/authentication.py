@@ -21,7 +21,7 @@ def get_access_token(code):
         'client_id': os.getenv('JIRA_CLIENT_ID'),
         'client_secret': os.getenv('CLIENT_SECRET'),
         'code': code,
-        'redirect_uri': "http://localhost:8501/Jira" 
+        'redirect_uri': "http://localhost:8501" 
     }
 
     headers = {
