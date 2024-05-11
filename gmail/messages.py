@@ -12,10 +12,19 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
         page_id = get_page_id(service, session, maxResults, page_number, query)
 
         # Get Email IDs
-        results = (service.users().messages().list(
-            userId="me", maxResults=maxResults, q=query, pageToken=page_id, includeSpamTrash=False).execute())
+        results = (
+            service
+            .users()
+            .messages()
+            .list(
+                userId="me",
+                maxResults=maxResults,
+                q=query,
+                pageToken=page_id,
+                includeSpamTrash=False
+            ).execute()
+        )
 
-        # print(results)
         message_ids = results.get("messages", [])
 
         if not message_ids:
@@ -72,8 +81,20 @@ def get_page_id(service, session, maxResults, page_number, query):
             if page_id:
                 counter += 1
                 continue
-            results = (service.users().messages().list(
-                userId="me", maxResults=maxResults, q=query, pageToken=prev_page_id, includeSpamTrash=False).execute())
+
+            results = (
+                service
+                .users()
+                .messages()
+                .list(
+                    userId="me",
+                    maxResults=maxResults,
+                    q=query,
+                    pageToken=prev_page_id,
+                    includeSpamTrash=False
+                ).execute()
+            )
+
             page_id = results.get("nextPageToken")
             email_pages[(maxResults, counter)] = page_id
             counter += 1
