@@ -54,6 +54,11 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
                     email_data["date"] = parse_date(header["value"])
 
             email_data["body"] = get_body_text(payload)
+            email_data["message_id"] = message_id
+
+            pdf_ids = []
+            get_pdf_attachment_ids(payload, pdf_ids)
+            email_data["pdf_ids"] = pdf_ids
 
             emails.append(email_data)
         return emails
@@ -115,6 +120,34 @@ def get_body_text(payload: dict) -> str:
         if data:
             return data
     return ""
+
+
+def get_pdf_attachment_ids(payload: dict, ids: list):
+    if payload.get("mimeType", "") == "application/pdf":
+        if payload.get("body", {}).get("size") != 0:
+            ids.append(payload["body"]["attachmentId"])
+    for part in payload.get("parts", []):
+        get_pdf_attachment_ids(part, ids)
+
+
+def get_pdf_attachment(service, message_id: str, payload: dict):
+    pdf_ids = []
+    get_pdf_attachment_ids(payload, pdf_ids)
+    for pdf_id in pdf_ids:
+        result = (
+                service
+                .users()
+                .messages()
+                .attachments()
+                .get(
+                    userId="me",
+                    messageId=message_id,
+                    id=pdf_id
+                ).execute()
+            )
+        with open(f"temp/{pdf_id[:16]}.pdf", "wb") as f:
+            f.write(base64.urlsafe_b64decode(result["data"]))
+    return [id[:16] for id in pdf_ids]
 
 
 def decode_string(data: str, charset: str = "UTF8") -> str:

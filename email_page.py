@@ -100,7 +100,7 @@ if logged_in:
                 st.write(emails[i]["subject"])
                 st.write(emails[i].get("snippet", ""))
             with col3:
-                pdf_icon = ":page_facing_up:" if i % 2 == 0 else ""
+                pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""
                 spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
                 st.write(f"{pdf_icon} {spreadsheet_icon}")
             st.write("---")
