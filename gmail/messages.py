@@ -1,4 +1,5 @@
 import base64
+import re
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -50,7 +51,7 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
                 if header["name"] == "Subject":
                     email_data["subject"] = remove_latex(header["value"])
                 if header["name"] == "Date":
-                    email_data["date"] = remove_latex(header["value"])
+                    email_data["date"] = parse_date(header["value"])
 
             email_data["body"] = get_body_text(payload)
 
@@ -124,3 +125,14 @@ def decode_string(data: str, charset: str = "UTF8") -> str:
 
 def remove_latex(data: str) -> str:
     return data.replace("$", "\\$")
+
+
+def parse_date(date: str) -> dict:
+    expression = r"^(?P<day_of_week>\w{3}),\s+(?P<day>\d{1,2})\s+(?P<month>\w+)\s+(?P<year>\d+)\s+(?P<time>.*)$"
+    search_result = re.search(expression, date)
+    if not search_result:
+        return {}
+    result = search_result.groupdict()
+    result["day"] = int(result["day"])
+    result["year"] = int(result["year"])
+    return result
