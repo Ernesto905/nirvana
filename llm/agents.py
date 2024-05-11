@@ -28,6 +28,9 @@ class Agent(BaseModel):
     def __str__(self):
         return self.name, self.description
 
+def dict_to_str(d: dict):
+        return "\n".join([f"{k}: {v}" for k, v in d.items()])
+
 """
 Chains:
 - Chain for Email in -> Decision about what to do with JIRA out [output: md list that we can parse]
@@ -145,9 +148,6 @@ def get_jira_actions(email: str, context: dict) -> dict:
     )
 
     # convert context to str because replicate api does not take kindly to curly braces!!!!!!!
-    def dict_to_str(d: dict):
-        return "\n".join([f"{k}: {v}" for k, v in d.items()])
-
     context = dict_to_str(context)
 
     chain = (
@@ -177,17 +177,87 @@ def get_jira_api_call(email: str, decision: str, context: dict):
     - "users": List of JIRA user keys
     """
 
+    prefix: str = """
+    You are an assistant working on the JIRA integration module of the Nirvana app.
+    A user has given us an email, and we have already made a decision about a specific action to take
+    in JIRA based on the email content. Now, we need to make the actual API call to JIRA to perform 
+    this action. This call will be formatted as a Python function call that will be executed to interact with the JIRA API.
+
+    We have access to the following functions to interact with the JIRA API:
+    - create_issue(project, summary, description, assignee, priority)
+    - update_issue(issue_key, summary, description, assignee, priority)
+    - create_task(issue_key, summary, description, assignee, priority)
+    - update_task(task_key, summary, description, assignee, priority)
+
+    Given the below email, the specific action to take in JIRA, and the context of the user's JIRA setup,
+    return the Python function call that corresponds to the action to be taken in JIRA. If the action is to create a new issue or task,
+    include the necessary parameters (project, summary, description, assignee, priority). If the action is to update an existing issue or task,
+    include the issue_key or task_key along with the updated parameters. The other parameters can be left as None if they are not relevant to the action.
+    """
+
+    example_prompt = PromptTemplate(
+        input_variables=["email", "decision", "context", "api_call"],
+        template="""
+        Email: {email}
+        Context: {context}
+        Decision: {decision}
+        API Call: {api_call}
+        """
+    )
+
+    examples = [{
+        "email": """
+        Subject: Urgent: Client Feedback on Project Falcon Deadline Adjustments
+        From: Jane Doe janedoe@clientdomain.com
+        Date: May 10, 2024
+        To: John Smith johnsmith@yourcompany.com
+        Dear John,
+        I hope this message finds you well. Following our recent discussions and the revisions to the project timelines that were agreed upon, I wanted to confirm the new delivery dates for Project Falcon. As per our last meeting, the final deliverable is now expected by June 30, 2024, instead of the previously set date of July 20, 2024.
+        Please acknowledge this email and update the project schedule accordingly. Additionally, we have noted some discrepancies in the last set of deliverables concerning the integration specifications. Could these be reviewed and addressed at the earliest?
+        Looking forward to your prompt action on these matters.
+        Best regards,
+        Jane Doe
+        Client Project Manager
+        ClientDomain.com
+        """,
+        "context": """
+        Project: Project Falcon
+        Status: In Progress
+        Key Issues:
+        Falcon-101: Draft initial project deliverables (Due: May 25, 2024)
+        Falcon-102: Review integration specifications (Due: June 10, 2024, Status: Pending Review)
+        Falcon-103: Finalize all deliverables (Original Due Date: July 20, 2024)
+        Epics:
+        Epic-001: Infrastructure Setup
+        Epic-002: Integration and Testing Phases
+        """,
+        "decision": """
+        Update the due date of the task Falcon-103 to June 30, 2024, to reflect the new deadline communicated by the client.
+        """,
+        "api_call": """
+        update_task('Falcon-103', None, None, None, None, '2024-06-30')
+        """}
+    ]
+
+    prompt = FewShotPromptTemplate(
+        examples=examples,
+        example_prompt=example_prompt,
+        input_variables=["email", "decision", "context"],
+        suffix="Email: {email}\nDecision: {decision}\nContext: {context}\nAPI Call:",
+        prefix=prefix
+    )
+
+    context = dict_to_str(context)
+
     chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT + """
-                balling
-            """
-        )
+        prompt 
         | Arctic()
         | StrOutputParser()
     )
 
-    return chain.invoke({"email": email, "decision": decision, "context": context})
+    output = chain.invoke({"email": email, "decision": decision, "context": context})
+
+    return {"api_call": output}
 
 # Unified Database Features
 def extract_features(email: str, schema: str) -> dict:
@@ -359,16 +429,20 @@ if __name__ == "__main__":
 
     print("==Suggested actions==\n\n", actions["actions"])
 
-    extracted_info = extract_features(email, """
-        Table: System Alerts
-        Columns:
-        - sender: VARCHAR(255)
-        - date: DATE
-        - subject: VARCHAR(255)
-        - message: TEXT
-        - recipient: VARCHAR(255)
-        - impact: TEXT
-        - findings: TEXT
-    """)
-    print("==Extracted Information==\n\n", extracted_info["extracted_information"])
+    for action in actions["actions"]:
+        api_call = get_jira_api_call(email, action, context)
+        print("API Call:", api_call["api_call"])
+
+    # extracted_info = extract_features(email, """
+    #     Table: System Alerts
+    #     Columns:
+    #     - sender: VARCHAR(255)
+    #     - date: DATE
+    #     - subject: VARCHAR(255)
+    #     - message: TEXT
+    #     - recipient: VARCHAR(255)
+    #     - impact: TEXT
+    #     - findings: TEXT
+    # """)
+    # print("==Extracted Information==\n\n", extracted_info["extracted_information"])
 
