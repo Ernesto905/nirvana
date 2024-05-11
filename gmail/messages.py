@@ -8,9 +8,11 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
     try:
         service = build("gmail", "v1", credentials=session.creds)
 
+        page_id = get_page_id(service, session, maxResults, page_number, query)
+
         # Get Email IDs
         results = (service.users().messages().list(
-            userId="me", maxResults=maxResults, q=query).execute())
+            userId="me", maxResults=maxResults, q=query, pageToken=page_id, includeSpamTrash=False).execute())
 
         # print(results)
         message_ids = results.get("messages", [])
@@ -38,6 +40,8 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
                     email_data["from"] = remove_latex(header["value"])
                 if header["name"] == "Subject":
                     email_data["subject"] = remove_latex(header["value"])
+                if header["name"] == "Date":
+                    email_data["date"] = remove_latex(header["value"])
 
             email_data["body"] = get_body_text(payload)
 
@@ -47,6 +51,35 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return []
+
+
+def get_page_id(service, session, maxResults, page_number, query):
+    if page_number == 1:
+        return ""
+
+    email_pages = session.get("email_pages", {})
+    page_id = email_pages.get((maxResults, page_number), "")
+    if len(page_id):
+        return page_id
+
+    try:
+        counter = 1
+        prev_page_id = ""
+        while counter != page_number:
+            prev_page_id = page_id
+            page_id = email_pages.get((maxResults, counter), None)
+            if page_id:
+                counter += 1
+                continue
+            results = (service.users().messages().list(
+                userId="me", maxResults=maxResults, q=query, pageToken=prev_page_id, includeSpamTrash=False).execute())
+            page_id = results.get("nextPageToken")
+            email_pages[(maxResults, counter)] = page_id
+            counter += 1
+        return page_id
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        return ""
 
 
 def get_body_text(payload: dict) -> str:
