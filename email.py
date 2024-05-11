@@ -59,7 +59,7 @@ if logged_in:
         )
 
     with col2:
-        st.write(f"Page: {st.session_state.get('email_page_num', 1)}")
+        st.write("\n")
         button1, button2 = st.columns([1, 1])
         with button1:
             if st.button("<", help="Newer", use_container_width=True):
