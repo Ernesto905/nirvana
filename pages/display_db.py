@@ -10,7 +10,7 @@ if page == "Assistant":
 elif page == "Jira":
     st.switch_page("pages/jira.py")
 elif page == "Email":
-    st.switch_page("Email.py")
+    st.switch_page("email.py")
 
 def display_tables(db):
 
