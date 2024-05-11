@@ -162,4 +162,5 @@ cython_debug/
 
 # Streamlit 
 .streamlit/secrets.toml
+cred.json
 token.json

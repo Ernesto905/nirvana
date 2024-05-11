@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_navigation_bar import st_navbar
 import replicate
 import os
 from transformers import AutoTokenizer
@@ -12,6 +13,14 @@ st.set_page_config(
     page_icon="⛰️ ",
 )
 
+page = st_navbar(["Email", "Assistant", "Display Database", "Jira"], selected="Assistant")
+
+if page == "Jira":
+    st.switch_page("pages/jira.py")
+elif page == "Display Database":
+    st.switch_page("pages/display_db.py")
+elif page == "Email":
+    st.switch_page("email.py")
 
 def main():
 

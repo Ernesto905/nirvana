@@ -1,9 +1,19 @@
 import streamlit as st
+from streamlit_navigation_bar import st_navbar
 from gmail.authentication import login, logout
 from gmail.messages import get_messages
 
 # Set page title and favicon
-st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:")
+st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:", layout="wide")
+
+page = st_navbar(["Email", "Assistant", "Display Database", "Jira"])
+
+if page == "Assistant":
+    st.switch_page("pages/assistant.py")
+elif page == "Display Database":
+    st.switch_page("pages/display_db.py")
+elif page == "Jira":
+    st.switch_page("pages/jira.py")
 
 # App title and description
 st.title("Gmail Wrapper")
@@ -55,9 +65,9 @@ if logged_in:
 
         selected_email_indices = []
         for i in range(len(emails)):  # Placeholder loop, replace with actual email data
-            col1, col2, col3 = st.columns([1, 3, 1])
+            col1, col2, col3 = st.columns([0.2, 5, 0.3])
             with col1:
-                if st.checkbox("Select", key=f"email_{i}"):
+                if st.checkbox("", key=f"email_{i}"):
                     selected_email_indices.append(i)
             with col2:
                 st.write(emails[i]["subject"])

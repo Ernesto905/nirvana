@@ -1,7 +1,17 @@
 import streamlit as st
+from streamlit_navigation_bar import st_navbar
 from jira.authentication import *
 from jira.client import JiraClient
 import json 
+
+page = st_navbar(["Email", "Assistant", "Display Database", "Jira"], selected="Jira")
+
+if page == "Assistant":
+    st.switch_page("pages/assistant.py")
+elif page == "Display Database":
+    st.switch_page("pages/display_db.py")
+elif page == "Email":
+    st.switch_page("email.py")
 
 # Authenticated with code 
 redirecting = False 
