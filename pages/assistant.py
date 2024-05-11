@@ -20,7 +20,7 @@ if page == "Jira":
 elif page == "Display Database":
     st.switch_page("pages/display_db.py")
 elif page == "Email":
-    st.switch_page("email.py")
+    st.switch_page("email_page.py")
 
 def main():
 
