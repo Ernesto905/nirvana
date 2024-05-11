@@ -21,11 +21,22 @@ from SQL.manager import RdsManager
 
 from jira.client import JiraClient
 
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
 app = Flask(__name__)
 
-def user_from_token(token: str) -> str:
+def user_from_token(creds: dict) -> str:
     """Given a user's token, fetch their email."""
-    ...
+    try:
+        service = build("gmail", "v1", credentials=creds)
+
+        # Get Email ID
+        results = service.users().getProfile(userId="me").execute()
+        return results.get("emailAddress", "")
+    except HttpError as error:
+        print(f"An error occured: {error}")
+        return ""
 
 @app.route('/get-actions', methods=['GET'])
 def get_actions() -> dict:
