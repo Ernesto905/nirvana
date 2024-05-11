@@ -1,4 +1,4 @@
-from wrappers import Arctic
+from llm.wrappers import Arctic
 from pydantic import BaseModel, Field
 
 from langchain_core.output_parsers import StrOutputParser
@@ -314,6 +314,36 @@ def extract_features(email: str, schema: str) -> dict:
 
     return {"extracted_information": literal_eval(output)}
 
+# Misc
+def generate_sql(request: str, schema: str) -> dict:
+    prompt = PromptTemplate.from_template(
+        """
+        You are a professional data engineer working on the data analysis module of the Nirvana app.
+
+        Given the below user request, as well as what our current database tables and columns look like,
+        generate the appropriate SQL query, if applicable, to retrieve relevant data from the database.
+
+        Note that we are working inside a PostgreSQL database, within a schema, so
+        your queries should look like "SELECT * FROM information_schema.columns WHERE table_name = 'table_name'" instead of
+        "SELECT * FROM table_name".
+
+        If the request does not require a SQL query, return "No SQL query needed".
+
+        Request: {request}
+
+        Schema: {schema}
+        """
+    )
+
+    chain = (
+        prompt
+        | Arctic()
+        | StrOutputParser()
+    )
+
+    output = chain.invoke({"request": request, "schema": schema})
+
+    return {"sql_query": output}
 
 if __name__ == "__main__":
 
