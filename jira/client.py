@@ -16,6 +16,9 @@ class JiraClient:
 
 
     def projects(self):
+        """
+        Returns all jira projects
+        """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.project_api_path}"
 
         response = requests.get(url, headers=self.headers)
@@ -63,118 +66,69 @@ class JiraClient:
         return user_id
 
     """
-    We have access to the following functions to interact with the JIRA API:
-    - create_issue(project, summary, description, assignee, priority)
+    project -> Key for our project. Only current project is "KAN" 
+    summary -> A string of text recapping the issue 
+    description -> A more in depth paragraph of the issue 
+    assignee -> An ID associated with the assignee for this issue 
+        to obtain, call get_userid_by_name("ernesto enriquez")
+    priority -> An ID associated with the priority for this project 
+        Currently allows for "Low", "Medium", "High", "Highest"
+
+    TODO:
     - update_issue(issue_key, summary, description, assignee, priority)
     - create_task(issue_key, summary, description, assignee, priority)
     - update_task(task_key, summary, description, assignee, priority)
     """
 
-    def create_issue(self, project, summary, description, assignee, priority):
+    def create_issue(self, project, summary, description, assignee, priority, issue_type):
         """
-        Creates an issue based on the following parameters 
-            project -> An ID associated with a project 
-            summary -> A string of text recapping the issue 
-            description -> A more in depth paragraph of the issue 
-            assignee -> An ID associated with the assignee for this issue 
-            priority -> An ID associated with the priority for this project 
+        Creates a jira issue of a given type and assign it to a given user.  
         """
-
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}"
+
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json",
+            "Content-Type": "application/json"
         }
 
-        payload = json.dumps(
-            {
-                "fields": {
-                    "assignee": {"id": assignee},
-                    "components": [{"id": "10000"}],
-                    "customfield_10000": "09/Jun/19",
-                    "customfield_20000": "06/Jul/19 3:25 PM",
-                    "customfield_30000": ["10000", "10002"],
-                    "customfield_40000": {
-                        "content": [
-                            {
-                                "content": [
-                                    {"text": "Occurs on all orders", "type": "text"}
-                                ],
-                                "type": "paragraph",
-                            }
-                        ],
-                        "type": "doc",
-                        "version": 1,
-                    },
-                    "customfield_50000": {
-                        "content": [
-                            {
-                                "content": [
-                                    {
-                                        "text": "Could impact day-to-day work.",
-                                        "type": "text",
-                                    }
-                                ],
-                                "type": "paragraph",
-                            }
-                        ],
-                        "type": "doc",
-                        "version": 1,
-                    },
-                    "customfield_60000": "jira-software-users",
-                    "customfield_70000": ["jira-administrators", "jira-software-users"],
-                    "customfield_80000": {"value": "red"},
-                    "description": {
-                        "content": [
-                            {
-                                "content": [
-                                    {
-                                        "text": description,
-                                        "type": "text",
-                                    }
-                                ],
-                                "type": "paragraph",
-                            }
-                        ],
-                        "type": "doc",
-                        "version": 1,
-                    },
-                    "duedate": "2019-05-11",
-                    "environment": {
-                        "content": [
-                            {
-                                "content": [{"text": "UAT", "type": "text"}],
-                                "type": "paragraph",
-                            }
-                        ],
-                        "type": "doc",
-                        "version": 1,
-                    },
-                    "fixVersions": [{"id": "10001"}],
-                    "issuetype": {"id": "10000"},
-                    "labels": ["bugfix", "blitz_test"],
-                    "parent": {"key": "PROJ-123"},
-                    "priority": {"id": priority},
-                    "project": {"id": str(project)},
-                    "reporter": {"id": "5b10a2844c20165700ede21g"},
-                    "security": {"id": "10000"},
-                    "summary": summary,
-                    "timetracking": {
-                        "originalEstimate": "10",
-                        "remainingEstimate": "5",
-                    },
-                    "versions": [{"id": "10000"}],
+        data = json.dumps({
+            "fields": {
+                "project": {
+                    "key": project 
                 },
-                "update": {},
+                "assignee": {
+                    "id": assignee
+                },
+                "summary": summary,
+                "description": {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": description
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "priority": {
+                  "name": "Low"
+                },
+                "issuetype": {
+                    "name": issue_type
+                }
             }
-        )
+        })
 
-        response = requests.post(url, headers=self.headers, data=payload)
-        print("\n\n ---- Response is ", response.text)
+        response = requests.post(url, headers=headers, data=data)
         response.raise_for_status()
 
         data = response.json()
-        print("The data is: ", data)
         return json.dumps(data)
 
     def update_issue(issue_key, summary, description, assignee, priority):
