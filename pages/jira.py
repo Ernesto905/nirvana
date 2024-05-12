@@ -64,6 +64,11 @@ else:
         else:
             st.warning("Please enter a JQL query.")
 
+    if st.button("test create"):
+        """create_issue(self, project, summary, description, assignee, priority)"""
+        # client.create_issue()     
+        # print("user id is ", client.get_userid_by_name("ernesto enriquez"))
+        print("Creating issue: ", client.create_issue(10000, "Make a crafting table", "After getting wood, turn it into planks & make it", "712020:1e1e3398-ff0b-4eaa-9e4d-b08b46a79f21", 0))
 
 
 

@@ -5,53 +5,62 @@ class JiraClient:
     def __init__(self, cloud_id, access_token):
         self.cloud_id = cloud_id  
         self.access_token = access_token
+        self.headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json"
+        }
 
-        self.project_api_path = "/rest/api/2/project"
-        self.search_api_path = "/rest/api/2/search"
+        self.project_api_path = "rest/api/3/project"
+        self.search_api_path = "rest/api/3/search"
+        self.create_issue_path = "rest/api/3/issue"
 
 
     def projects(self):
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.project_api_path}"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Accept": "application/json"
-        }
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=self.headers)
         response.raise_for_status()
 
         data = response.json()
         return data
+
     
     def get_all_issues(self):
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.search_api_path}"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Accept": "application/json"
-        }
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=self.headers)
         response.raise_for_status()
 
         data = response.json()
         return json.dumps(data)
     
     def search_with_jql(self, jql):
+        """
+        Perform search with JQL-- Jira's inbuild query language. 
+        This function returns a string.
+        """
+
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.search_api_path}"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Accept": "application/json"
-        }
 
         params = {
             "jql" : jql
         }
 
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(url, headers=self.headers, params=params)
         response.raise_for_status()
 
         data = response.json()
         return json.dumps(data)
+
+    def get_userid_by_name(self, name):
+        """
+        Takes in a user's name and performs a JQL search on it.
+        This function returns a string.
+        """
+        payload = self.search_with_jql(f"assignee = \"{name}\"")
+        json_data = json.loads(payload)
+        user_id = json_data['issues'][0]['fields']['assignee']['accountId']
+        return user_id
 
     """
     We have access to the following functions to interact with the JIRA API:
@@ -160,10 +169,12 @@ class JiraClient:
             }
         )
 
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.post(url, headers=self.headers, data=payload)
+        print("\n\n ---- Response is ", response.text)
         response.raise_for_status()
 
         data = response.json()
+        print("The data is: ", data)
         return json.dumps(data)
 
     def update_issue(issue_key, summary, description, assignee, priority):
