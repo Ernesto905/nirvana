@@ -64,11 +64,29 @@ else:
         else:
             st.warning("Please enter a JQL query.")
 
-    if st.button("test create"):
-        """create_issue(self, project, summary, description, assignee, priority)"""
-        # client.create_issue()     
-        # print("user id is ", client.get_userid_by_name("ernesto enriquez"))
-        print("Creating issue: ", client.create_issue(10000, "Make a crafting table", "After getting wood, turn it into planks & make it", "712020:1e1e3398-ff0b-4eaa-9e4d-b08b46a79f21", 0))
+    # Title for the Streamlit app.
+    st.subheader("Jira Issue Creator")
+
+    # UI elements for user inputs.
+    project = st.selectbox("Select Project", options=["KAN"])
+    summary = st.text_input("Issue Summary")
+    description = st.text_area("Issue Description")
+    username = st.text_input("Your Username")
+    priority = st.selectbox("Select Priority", options=["Low", "Medium", "High", "Highest"])
+    issue_type = st.selectbox("Select Issue Type", options=["Bug", "Task", "Epic"])
+
+    if st.button("Create Issue"):
+        # Attempt to create an issue using the provided inputs.
+        try:
+            # Convert the username to a user ID.
+            user_id = client.get_userid_by_name(username)
+            result = client.create_issue(project, summary, description, user_id, priority, issue_type)
+            st.success("Issue created successfully! Issue ID: " + str(result))
+        except Exception as e:
+            if str(e) == "list index out of range":
+                st.error("Failed to create issue: please enter a valid user")
+            else: 
+                st.error("Failed to create issue: " + str(e))
 
 
 
