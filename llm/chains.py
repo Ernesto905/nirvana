@@ -1,4 +1,4 @@
-from wrappers import Arctic
+from llm.wrappers import Arctic
 from pydantic import BaseModel, Field
 
 from langchain_core.output_parsers import StrOutputParser
@@ -384,6 +384,119 @@ def extract_features(email: str, schema: str) -> dict:
 
     return {"extracted_information": literal_eval(output)}
 
+# Misc
+def generate_sql(request: str, schema: str) -> dict:
+    prompt = PromptTemplate.from_template(
+        """
+        You are a professional data engineer working on the data analysis module of the Nirvana app.
+
+        Given the below user request, as well as what our current database tables and columns look like,
+        generate the appropriate SQL query, if applicable, to retrieve relevant data from the database.
+
+        Note that we are working inside a PostgreSQL database, within a schema, so
+        your queries should look like "SELECT * FROM information_schema.columns WHERE table_name = 'table_name'" instead of
+        "SELECT * FROM table_name".
+
+        If the request does not require a SQL query, return "No SQL query needed".
+
+        Request: {request}
+
+        Schema: {schema}
+        """
+    )
+
+    chain = (
+        prompt
+        | Arctic()
+        | StrOutputParser()
+    )
+
+    output = chain.invoke({"request": request, "schema": schema})
+
+    return {"sql_query": output}
+
+def function_call(request: str, functions: list[str]) -> dict:
+    """
+    Given an email and a list of functions, return the correct function call, if any.
+    """
+
+    prefix: str = f"""
+    You are an assistant working on the JIRA integration module of the Nirvana app.
+    A user has given us an email, and we a set of functions available to us. 
+    We have to make a decision about which functions (could be 0, one, or multiple) to use. 
+    This call will be formatted as a Python function call that will be executed.
+
+    We have access to the following functions:
+    {functions}
+
+    Given the below email and a list of functions, return the Python function call that corresponds to the action to be taken.
+    If the function has required parameters, include them in the function call. If the function has
+    optional parameters, you can include them if you think they are relevant to the action to be taken. Return
+    the function call, or calls, as a list of Python strings where each string is a Python function call.
+    """
+
+    example_prompt = PromptTemplate(
+        input_variables=["email", "functions", "function_call"],
+        template="""
+        Email: {email}
+        Functions: {functions}
+        Function Call: {function_call}
+        """
+    )
+
+    examples = [{
+        "email": """
+        Subject: Urgent: Client Feedback on Project Falcon Deadline Adjustments
+        From: Jane Doe janedoe@clientdomain.com
+        Date: May 10, 2024
+        To: John Smith johnsmith@yourcompany.com
+        Dear John,
+        I hope this message finds you well. Following our recent discussions and the revisions to the project timelines that were agreed upon, I wanted to confirm the new delivery dates for Project Falcon. As per our last meeting, the final deliverable is now expected by June 30, 2024, instead of the previously set date of July 20, 2024.
+        Please acknowledge this email and update the project schedule accordingly. Additionally, we have noted some discrepancies in the last set of deliverables concerning the integration specifications. Could these be reviewed and addressed at the earliest?
+        Looking forward to your prompt action on these matters.
+        Best regards,
+        Jane Doe
+        Client Project Manager
+        ClientDomain.com
+        """,
+        "context": """
+        Project: Project Falcon
+        Status: In Progress
+        Key Issues:
+        Falcon-101: Draft initial project deliverables (Due: May 25, 2024)
+        Falcon-102: Review integration specifications (Due: June 10, 2024, Status: Pending Review)
+        Falcon-103: Finalize all deliverables (Original Due Date: July 20, 2024)
+        Epics:
+        Epic-001: Infrastructure Setup
+        Epic-002: Integration and Testing Phases
+        """,
+        "decision": """
+        Update the due date of the task Falcon-103 to June 30, 2024, to reflect the new deadline communicated by the client.
+        """,
+        "api_call": """
+        update_task('Falcon-103', None, None, None, None, '2024-06-30')
+        """}
+    ]
+
+    prompt = FewShotPromptTemplate(
+        examples=examples,
+        example_prompt=example_prompt,
+        input_variables=["email", "decision", "context"],
+        suffix="Email: {email}\nDecision: {decision}\nContext: {context}\nAPI Call:",
+        prefix=prefix
+    )
+
+    context = dict_to_str(context)
+
+    chain = (
+        prompt 
+        | Arctic()
+        | StrOutputParser()
+    )
+
+    output = chain.invoke({"email": email, "decision": decision, "context": context})
+
+    return {"api_call": output}
 
 if __name__ == "__main__":
 

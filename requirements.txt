@@ -1,6 +1,5 @@
 streamlit
 streamlit-option-menu
-streamlit_navigation_bar
 replicate
 transformers
 tensorflow

@@ -1,92 +1,19 @@
 import streamlit as st
-from streamlit_navigation_bar import st_navbar
+import json 
 from jira.authentication import *
 from jira.client import JiraClient
-import json 
-
-page = st_navbar(["Email", "Assistant", "Display Database", "Jira"], selected="Jira")
-
-if page == "Assistant":
-    st.switch_page("pages/assistant.py")
-elif page == "Display Database":
-    st.switch_page("pages/display_db.py")
-elif page == "Email":
-    st.switch_page("email_page.py")
-
-# Authenticated with code 
-redirecting = False 
-auth = False
 
 # Check if the user has already authenticated
 if 'access_token' not in st.session_state:
-
-    if 'auth_state' not in st.session_state or 'code' in st.query_params or auth == False:
-        if 'code' in st.query_params:
-            authorization_code = st.query_params['code']
-            st.query_params.clear()
-            access_token = get_access_token(authorization_code)
-
-            st.session_state['access_token'] = access_token
-            auth = True
-            st.rerun()
-        else:
-            authorization_url, state = get_authorization_url()
-            st.session_state['auth_state'] = state
-
-
-
-
-
-            # st.markdown(f'<a href="{authorization_url}" target="_self">Click here to authenticate with Jira</a>', unsafe_allow_html=True)
-# css styling for the button
-# CSS styling for the button
-            button_style = """
-                <style>
-                .custom-button {
-                    display: inline-block;
-                    padding: 0.75rem 1.5rem;
-                    background-color: #8B6969;
-                    color: #FFF8F3;
-                    text-decoration: none;
-                    border-radius: 0.25rem;
-                    font-weight: bold;
-                    transition: background-color 0.3s;
-                    font-family: serif;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 1.1rem;
-                }
-                .custom-button:hover {
-                    background-color: #A08080;
-                }
-                .custom-button:active {
-                    background-color: #6B4F4F;
-                }
-                </style>
-            """
-
-# Display the button with custom styling
-            button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button">Authenticate with Jira</button></a>'
-            st.markdown(button_style + button_html, unsafe_allow_html=True)
-
-
-
-
-            redirecting = True
-
-    elif redirecting == True: 
-        st.warning("Redirecting now...")
-
+    st.info("Please authenticate with Jira to continue.")
 else:
-    st.success("Successfully Authenticated")
     access_token = st.session_state['access_token']
     cloud_id = get_cloudid(access_token)
-
+    
     st.session_state.JiraClient = JiraClient(cloud_id, access_token)
     client = st.session_state.JiraClient
 
-
-# Drop-down feature for displaying issues
+    # Drop-down feature for displaying issues
     if st.checkbox("Show All Issues"):
         issues_json = client.get_all_issues()
         issues = json.loads(issues_json)
@@ -107,7 +34,7 @@ else:
                 st.write(f"**Assignee:** {issue_assignee}")
                 st.write(f"**Created:** {issue_created}")
 
-# Search bar and button for JQL search
+    # Search bar and button for JQL search
     st.subheader("Search Issues with JQL")
     jql_query = st.text_input("Enter JQL Query")
 
@@ -137,6 +64,29 @@ else:
         else:
             st.warning("Please enter a JQL query.")
 
+    # Title for the Streamlit app.
+    st.subheader("Jira Issue Creator")
+
+    # UI elements for user inputs.
+    project = st.selectbox("Select Project", options=["KAN"])
+    summary = st.text_input("Issue Summary")
+    description = st.text_area("Issue Description")
+    username = st.text_input("Your Username")
+    priority = st.selectbox("Select Priority", options=["Low", "Medium", "High", "Highest"])
+    issue_type = st.selectbox("Select Issue Type", options=["Bug", "Task", "Epic"])
+
+    if st.button("Create Issue"):
+        # Attempt to create an issue using the provided inputs.
+        try:
+            # Convert the username to a user ID.
+            user_id = client.get_userid_by_name(username)
+            result = client.create_issue(project, summary, description, user_id, priority, issue_type)
+            st.success("Issue created successfully! Issue ID: " + str(result))
+        except Exception as e:
+            if str(e) == "list index out of range":
+                st.error("Failed to create issue: please enter a valid user")
+            else: 
+                st.error("Failed to create issue: " + str(e))
 
 
 

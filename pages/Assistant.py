@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_navigation_bar import st_navbar
 import replicate
 import os
 from transformers import AutoTokenizer
@@ -13,14 +12,6 @@ st.set_page_config(
     page_icon="⛰️ ",
 )
 
-page = st_navbar(["Email", "Assistant", "Display Database", "Jira"], selected="Assistant")
-
-if page == "Jira":
-    st.switch_page("pages/jira.py")
-elif page == "Display Database":
-    st.switch_page("pages/display_db.py")
-elif page == "Email":
-    st.switch_page("email_page.py")
 
 def main():
 
@@ -36,20 +27,6 @@ def main():
         init_chat_history()
         display_chat_messages()
         get_and_process_prompt(db)
-
-
-
-
-    # """Execution starts here."""
-    # connect_to_rds(st.secrets.db_credentials.HOST, 
-    #                st.secrets.db_credentials.PORT,
-    #                st.secrets.db_credentials.USER,
-    #                st.secrets.db_credentials.PASS)
-    # get_replicate_api_token()
-    # init_chat_history()
-    # display_chat_messages()
-    # get_and_process_prompt()
-
 
 def get_replicate_api_token():
     os.environ["REPLICATE_API_TOKEN"] = st.secrets.api["REPLICATE_API_TOKEN"]
