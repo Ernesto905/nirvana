@@ -39,11 +39,19 @@ class RdsManager():
         schema_name = self.get_schema_name(user_email)
         self.cursor.execute(f"SET search_path TO {schema_name}")
         print(f"Switched to schema '{schema_name}'.")
-    
+
     # Generate a valid schema name based on the user's email
     def get_schema_name(self, user_email):
         schema_name = user_email.replace("@", "_").replace(".", "_")
         return schema_name
+
+    def get_tables(self) -> list:
+        self.cursor.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = current_schema()
+        """)
+        return self.cursor.fetchall()
 
     def execute_sql(self, sql, values=None):
         try:
@@ -109,5 +117,3 @@ class RdsManager():
         if self.conn:
             self.conn.close()
         print("Database connection closed")
-
-            
