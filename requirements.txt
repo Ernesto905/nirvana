@@ -16,3 +16,4 @@ google-auth-oauthlib
 jira
 flask
 redis
+async_timeout

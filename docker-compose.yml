@@ -9,7 +9,6 @@ services:
     platform: linux/arm64/v8
     volumes:
       - .:/app
-
   streamlit-app:
     build:
       context: .
@@ -21,3 +20,8 @@ services:
       - .:/app
     depends_on:
       - flask-app
+  redis:
+    image: "redis:latest"
+    ports:
+      - "6379:6379"
+

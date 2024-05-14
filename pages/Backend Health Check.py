@@ -4,7 +4,7 @@ import redis
 
 def check_flask_health():
     try:
-        response = requests.get("http://flask-api:5000/health")
+        response = requests.get("http://flask-app:5000/health")
         print(response.text)
         if response.status_code == 200:
             return True, response.json()
@@ -15,7 +15,7 @@ def check_flask_health():
 
 def check_redis_health():
     try:
-        redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)  # Adjust host and port if necessary
+        redis_client = redis.StrictRedis(host='redis', port=6379, db=0)  # Adjust host and port if necessary
         redis_client.ping()
         return True, "Redis server is alive!"
     except Exception as e:

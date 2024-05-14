@@ -1,11 +1,11 @@
 import os
 from flask import Flask, request, jsonify
 from backend import create_app
-from llm.agents import (
-    get_jira_actions,
-    get_jira_api_call,
-    extract_features
-)
+# from llm.wrappers import (
+#     get_jira_actions,
+#     get_jira_api_call,
+#     extract_features
+# )
 from SQL.manager import RdsManager
 from jira.client import JiraClient
 from googleapiclient.discovery import build
