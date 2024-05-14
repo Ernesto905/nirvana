@@ -1,0 +1,3 @@
+def process_chat(user_message: str) -> str:
+    ...
+    return "Hello, I am a chatbot. How can I help you today?"
