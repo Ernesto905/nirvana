@@ -160,7 +160,9 @@ cython_debug/
 #.idea/
 
 
-# Streamlit 
+# Streamlit
 .streamlit/secrets.toml
 cred.json
 token.json
+credentials.json
+temp/

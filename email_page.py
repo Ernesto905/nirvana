@@ -41,40 +41,66 @@ if logged_in:
 
     st.header("Inbox")
 
-    search_query = st.text_input("Search emails", placeholder="Enter keywords")
-    if st.session_state.get("email_search_query", "") != search_query:
-        st.session_state["email_search_query"] = search_query
+    def email_change_callback():
         st.session_state["update_emails"] = True
 
-    emails_per_page = st.selectbox("Emails per page:", [10, 25, 50, 100])
-    if st.session_state.get("emails_per_page", "") != emails_per_page:
-        st.session_state["emails_per_page"] = emails_per_page
-        st.session_state["update_emails"] = True
+    search_query = st.text_input(
+        "Search emails",
+        placeholder="Enter keywords",
+        on_change=email_change_callback
+    )
+
+    col1, col2 = st.columns([3, 0.5])
+    with col1:
+        emails_per_page = st.selectbox(
+            "Emails per page:",
+            [10, 25, 50, 100],
+            on_change=email_change_callback
+        )
+
+    with col2:
+        st.write("\n")
+        button1, button2 = st.columns([1, 1])
+        with button1:
+            if st.button("<", help="Newer", use_container_width=True):
+                current_value = st.session_state.get("email_page_num", 1)
+                st.session_state["email_page_num"] = current_value - 1 if current_value > 1 else 1
+                email_change_callback()
+        with button2:
+            if st.button("\\>", help="Older", use_container_width=True):
+                current_value = st.session_state.get("email_page_num", 1)
+                st.session_state["email_page_num"] = current_value + 1
+                email_change_callback()
 
     email_list = st.empty()
-
     with email_list.container():
 
         # Prevent emails from being fetched multiple times
         if not st.session_state.get("emails", None) or st.session_state.get("update_emails", False):
-            emails = get_messages(st.session_state, maxResults=emails_per_page, query=search_query)
+            emails = get_messages(
+                st.session_state,
+                maxResults=emails_per_page,
+                page_number=st.session_state.get("email_page_num", 1),
+                query=search_query
+            )
             st.session_state["emails"] = emails
             st.session_state["update_emails"] = False
         else:
             emails = st.session_state["emails"]
 
         selected_email_indices = []
-        for i in range(len(emails)):  # Placeholder loop, replace with actual email data
+        for i in range(len(emails)):
             col1, col2, col3 = st.columns([0.2, 5, 0.3])
             with col1:
-                if st.checkbox("", key=f"email_{i}"):
+                if st.checkbox(" ", key=f"email_{i}"):
                     selected_email_indices.append(i)
             with col2:
+                st.write(f"**{emails[i]['from']}**")
+                st.write(f"{emails[i]['date']['month']} {emails[i]['date']['day']}")
                 st.write(emails[i]["subject"])
-                st.write(emails[i]["from"])
                 st.write(emails[i].get("snippet", ""))
             with col3:
-                pdf_icon = ":page_facing_up:" if i % 2 == 0 else ""
+                pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""
                 spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
                 st.write(f"{pdf_icon} {spreadsheet_icon}")
             st.write("---")
