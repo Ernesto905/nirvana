@@ -1,8 +1,10 @@
+import sys
+print("PATH IS: ", sys.path)
+
 import streamlit as st 
 from gmail.authentication import login, logout
 from jira.authentication import *
 from jira.client import JiraClient
-import webbrowser
 
 # Set page title and favicon
 st.set_page_config(page_title="Nirvana", page_icon=":peace_symbol:")
