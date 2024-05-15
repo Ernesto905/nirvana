@@ -15,7 +15,7 @@ def check_flask_health():
 
 def check_redis_health():
     try:
-        redis_client = redis.StrictRedis(host='redis', port=6379, db=0)  # Adjust host and port if necessary
+        redis_client = redis.StrictRedis(host='redis-app', port=6379, db=0)  # Adjust host and port if necessary
         redis_client.ping()
         return True, "Redis server is alive!"
     except Exception as e:
