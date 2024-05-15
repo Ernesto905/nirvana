@@ -1,3 +1,1 @@
-from flask import Blueprint
-
-bp = Blueprint('jira', __name__, url_prefix='/jira')
+from backend.v1.jira.routes import bp

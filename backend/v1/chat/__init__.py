@@ -1,0 +1,1 @@
+from backend.v1.chat.routes import bp
