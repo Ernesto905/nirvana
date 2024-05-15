@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.data.service import ingest_data
 
-data_bp = Blueprint('data', __name__, url_prefix='/data')
+bp = Blueprint('data', __name__, url_prefix='/data')
 
-@data_bp.route('/', methods=['POST'])
+@bp.route('/', methods=['POST'])
 def ingest():
     data = request.get_json()
     email = data.get('email')
