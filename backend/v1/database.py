@@ -62,7 +62,8 @@ class RdsManager():
             print(f"Error executing SQL: {str(e)}")
 
     def sync_jira(self, issues, issue_type):
-        table_name = issue_type.capitalize() + 's'  # Determine the table name based on the issue type
+        # Determine the table name based on the issue type
+        table_name = issue_type.capitalize() + 's'  
         issues = json.loads(issues)
 
         # Initialize Issue tables
@@ -110,6 +111,9 @@ class RdsManager():
         # Drop tables first
         self.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
 
+        # Add table information to metadata table 
+        self.update_metadata(sql)
+
         self.execute_sql(create_table)
 
     def create_metadata_table(self):
@@ -139,6 +143,15 @@ class RdsManager():
         """
         self.execute_sql(update_sql, (table_name, columns))
         print(f"Metadata for table '{table_name}' updated.")
+
+    def get_metadata(self):
+        fetch_sql = "SELECT table_name, table_columns FROM metadata"
+        self.cursor.execute(fetch_sql)
+        rows = self.cursor.fetchall()
+        
+        metadata_dict = {row[0]: row[1] for row in rows}
+        return metadata_dict
+
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.cursor:
