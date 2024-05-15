@@ -1,5 +1,6 @@
 import psycopg
 import json
+import re
 
 class RdsManager():
     def __init__(self, host, port, user, password):
@@ -110,6 +111,34 @@ class RdsManager():
         self.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
 
         self.execute_sql(create_table)
+
+    def create_metadata_table(self):
+        sql = """CREATE TABLE IF NOT EXISTS metadata (
+            table_name VARCHAR(255) PRIMARY KEY,
+            table_columns TEXT[]
+            );
+        """
+        self.execute_sql(sql)
+
+    def update_metadata(self, sql):
+    # Regular expression to capture CREATE TABLE statements
+    create_table_pattern = r"CREATE TABLE IF NOT EXISTS (\w+) \(([^)]+)\)"
+    match = re.search(create_table_pattern, sql, re.IGNORECASE)
+    
+    if match:
+        table_name = match.group(1)
+        columns_part = match.group(2)
+        columns = [col.strip().split()[0] for col in columns_part.split(',')]
+
+        # Insert/update metadata table
+        update_sql = """
+        INSERT INTO metadata (table_name, table_columns)
+        VALUES (%s, %s)
+        ON CONFLICT (table_name) DO UPDATE SET
+            table_columns = EXCLUDED.table_columns;
+        """
+        self.execute_sql(update_sql, (table_name, columns))
+        print(f"Metadata for table '{table_name}' updated.")
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.cursor:
