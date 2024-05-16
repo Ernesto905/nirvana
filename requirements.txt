@@ -9,8 +9,11 @@ psycopg[binaries]
 pandas
 langchain
 langchain_core
+langchain_openai
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 jira
 flask
+redis
+async_timeout

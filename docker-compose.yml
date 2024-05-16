@@ -1,0 +1,29 @@
+name: nirvana
+services:
+  flask-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.flask
+    ports:
+      - "5000:5000"
+    platform: linux/amd64
+    volumes:
+      - .:/app
+
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "8501:8501"
+    platform: linux/amd64
+    volumes:
+      - .:/app
+    depends_on:
+      - flask-app
+
+  redis-app:
+    image: "redis:latest"
+    platform: linux/amd64
+    ports:
+      - "6379:6379"
