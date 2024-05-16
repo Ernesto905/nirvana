@@ -63,11 +63,8 @@ class RdsManager():
             
         try:
             self.cursor.execute(sql, values)
-            print("SQL executed successfully!", sql)
         except Exception as e:
             print(f"Error executing SQL: {str(e)}")
-            print(f"The SQL we can't execute is: {sql}")
-            print(f"With values: {values}")
     
 
     def execute_sql(self, sql, values=None):
@@ -97,7 +94,6 @@ class RdsManager():
         elif match_drop: 
             self.execute_core_sql(sql, values)
             table_name = match_drop.group(2)
-            print("THE TABLE NAME IS", table_name)
 
             self.delete_metadata(table_name)
         else:
@@ -109,7 +105,6 @@ class RdsManager():
     def delete_metadata(self, table_name):
         delete_sql = "DELETE FROM metadata WHERE table_name = %s;"
         self.execute_core_sql(delete_sql, (table_name,))
-        print(f"Metadata for table '{table_name}' deleted.")
 
     def sync_jira(self, issues, issue_type):
         # Determine the table name based on the issue type
@@ -188,7 +183,6 @@ class RdsManager():
             table_columns = EXCLUDED.table_columns;
         """
         # Execute using execute_core_sql to avoid triggering additional checks
-        print("\n\n\n ---- I am here in update_metadata. This should work!", table_name, columns)
         self.execute_core_sql(update_sql, (table_name, columns))
 
     def get_metadata(self):
