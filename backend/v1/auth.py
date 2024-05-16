@@ -8,6 +8,9 @@ from functools import wraps
 from flask import request, jsonify
 
 def google_auth_required(func):
+    """
+    Decorator to go around routes that require google authentication.    
+    """
     @wraps(func)
     def wrapper(*args, **kwargs):
         token = request.headers.get('google-auth-token')
@@ -17,6 +20,9 @@ def google_auth_required(func):
     return wrapper
 
 def jira_auth_required(func):
+    """
+    Decorator to go around routes that require jira authentication.
+    """
     @wraps(func)
     def wrapper(*args, **kwargs):
         token = request.headers.get('jira-auth-token')
