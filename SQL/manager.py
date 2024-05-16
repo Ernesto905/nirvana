@@ -74,30 +74,42 @@ class RdsManager():
         self.create_metadata_table()
 
         # Regex to match "CREATE TABLE" with or without "IF NOT EXISTS"
-        create_table_pattern = r"CREATE TABLE(\s+IF NOT EXISTS)?\s+(\w+)\s+\((.+)\)"
-        match = re.search(create_table_pattern, sql, re.IGNORECASE)
+        match_create_pattern = r"CREATE TABLE(\s+IF NOT EXISTS)?\s+(\w+)\s+\((.+)\)"
+        match_drop_pattern = r"DROP TABLE\s+(IF EXISTS\s+)?(\w+);"
+        match_create = re.search(match_create_pattern, sql, re.IGNORECASE)
+        match_drop = re.search(match_drop_pattern, sql, re.IGNORECASE)
 
-        if match:
+
+        if match_create:
             # Execute the SQL without introspection to avoid recursion
             self.execute_core_sql(sql, values)
             
-            table_name = match.group(2)
-            columns_part = match.group(3)
+            table_name = match_create.group(2)
+            columns_part = match_create.group(3)
             
             columns = []
             for column_detail in columns_part.split(','):
                 first_word = column_detail.strip().split()[0]
                 columns.append(first_word)
-
-            print("\n\n\nThe columns created are: ", columns)
             
             # Update metadata with newfound table info
             self.update_metadata(table_name, columns)
+        elif match_drop: 
+            self.execute_core_sql(sql, values)
+            table_name = match_drop.group(2)
+            print("THE TABLE NAME IS", table_name)
+
+            self.delete_metadata(table_name)
         else:
             # If not a CREATE TABLE statement, just execute the SQL
             self.execute_core_sql(sql, values)
 
 
+
+    def delete_metadata(self, table_name):
+        delete_sql = "DELETE FROM metadata WHERE table_name = %s;"
+        self.execute_core_sql(delete_sql, (table_name,))
+        print(f"Metadata for table '{table_name}' deleted.")
 
     def sync_jira(self, issues, issue_type):
         # Determine the table name based on the issue type
