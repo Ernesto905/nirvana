@@ -4,7 +4,7 @@ import redis
 
 def check_flask_health():
     try:
-        response = requests.get("http://flask-app:5000/health")
+        response = requests.get("http://flask-app:5000/v1/health")
         print(response.text)
         if response.status_code == 200:
             return True, response.json()

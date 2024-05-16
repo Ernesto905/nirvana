@@ -14,28 +14,26 @@ def display_tables(db):
     """)
     tables = [row[0] for row in db.cursor.fetchall()]
 
-    # Display the table names as selectbox options
     selected_table = st.selectbox("Select a table", tables)
 
     if selected_table:
-        # Retrieve the column names of the selected table
-        db.cursor.execute(f"""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = '{selected_table}'
-            ORDER BY ordinal_position
-        """)
-        columns = [row[0] for row in db.cursor.fetchall()]
+        if selected_table == 'metadata':
+            columns = ['table_name', 'table_columns']
+        else: 
+            db.cursor.execute(f"""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = '{selected_table}'
+                ORDER BY ordinal_position
+            """)
+            columns = [row[0] for row in db.cursor.fetchall()]
 
-        # Retrieve the data from the selected table
         db.cursor.execute(f"SELECT * FROM {selected_table}")
         data = db.cursor.fetchall()
 
-        # Create a DataFrame with the retrieved data and column names
         import pandas as pd
         df = pd.DataFrame(data, columns=columns)
 
-        # Display the DataFrame using Streamlit's table component
         st.table(df)
 
 with RdsManager(st.secrets.db_credentials.HOST, 
@@ -44,6 +42,9 @@ with RdsManager(st.secrets.db_credentials.HOST,
                 st.secrets.db_credentials.PASS) as db:
     db.switch_user_schema("ernesto90643@gmail.com")          
     display_tables(db)
+
+    if st.button("show metadata"):
+        print("THE RETURN VAlUES ARE: ", db.get_metadata())
     
     # Check for Jira Auth
     if st.button("sync with Jira"):

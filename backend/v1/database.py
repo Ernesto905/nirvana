@@ -25,6 +25,7 @@ class RdsManager():
 
             # Create a cursor object
             self.cursor = self.conn.cursor()
+
             return self
 
         except Exception as e:
@@ -54,12 +55,47 @@ class RdsManager():
         """)
         return self.cursor.fetchall()
 
-    def execute_sql(self, sql, values=None):
+    def execute_core_sql(self, sql, values=None):
+        """Executes SQL without any checks.
+        Current checks include,
+        (1) if it's a new table, add it's info to metadata table
+        """
         try:
             self.cursor.execute(sql, values)
             print("SQL executed successfully!")
         except Exception as e:
             print(f"Error executing SQL: {str(e)}")
+    
+
+    def execute_sql(self, sql, values=None):
+        self.create_metadata_table()
+
+        # Regex to match "CREATE TABLE" with or without "IF NOT EXISTS"
+        create_table_pattern = r"CREATE TABLE(\s+IF NOT EXISTS)?\s+(\w+)\s+\((.+)\)"
+        match = re.search(create_table_pattern, sql, re.IGNORECASE)
+
+        if match:
+            # Execute the SQL without introspection to avoid recursion
+            self.execute_core_sql(sql, values)
+            
+            table_name = match.group(2)
+            columns_part = match.group(3)
+            
+            columns = []
+            for column_detail in columns_part.split(','):
+                first_word = column_detail.strip().split()[0]
+                columns.append(first_word)
+
+            print("\n\n\nThe columns created are: ", columns)
+            
+            # Update metadata with newfound table info
+            self.update_metadata(table_name, columns)
+            print(f"Metadata for table '{table_name}' updated.")
+        else:
+            # If not a CREATE TABLE statement, just execute the SQL
+            self.execute_core_sql(sql, values)
+
+
 
     def sync_jira(self, issues, issue_type):
         # Determine the table name based on the issue type
@@ -109,12 +145,12 @@ class RdsManager():
         """
 
         # Drop tables first
-        self.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+        self.execute_core_sql(f"DROP TABLE IF EXISTS {table_name}")
 
         # Add table information to metadata table 
         self.update_metadata(sql)
 
-        self.execute_sql(create_table)
+        self.execute_core_sql(create_table)
 
     def create_metadata_table(self):
         sql = """CREATE TABLE IF NOT EXISTS metadata (
@@ -122,27 +158,22 @@ class RdsManager():
             table_columns TEXT[]
             );
         """
-        self.execute_sql(sql)
+        try:
+            self.execute_core_sql(sql)
+            print("Metadata table successfully ensured.")
+        except Exception as e:
+            print(f"Error creating metadata table: {e}")
+            raise 
 
-    def update_metadata(self, sql):
-    # Regular expression to capture CREATE TABLE statements
-    create_table_pattern = r"CREATE TABLE IF NOT EXISTS (\w+) \(([^)]+)\)"
-    match = re.search(create_table_pattern, sql, re.IGNORECASE)
-    
-    if match:
-        table_name = match.group(1)
-        columns_part = match.group(2)
-        columns = [col.strip().split()[0] for col in columns_part.split(',')]
-
-        # Insert/update metadata table
+    def update_metadata(self, table_name, columns):
         update_sql = """
         INSERT INTO metadata (table_name, table_columns)
         VALUES (%s, %s)
         ON CONFLICT (table_name) DO UPDATE SET
             table_columns = EXCLUDED.table_columns;
         """
-        self.execute_sql(update_sql, (table_name, columns))
-        print(f"Metadata for table '{table_name}' updated.")
+        # Execute using execute_core_sql to avoid triggering additional checks
+        self.execute_core_sql(update_sql, (table_name, columns))
 
     def get_metadata(self):
         fetch_sql = "SELECT table_name, table_columns FROM metadata"
