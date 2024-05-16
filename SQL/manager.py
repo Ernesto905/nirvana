@@ -56,13 +56,13 @@ class RdsManager():
         return self.cursor.fetchall()
 
     def execute_core_sql(self, sql, values=None):
-        """Executes SQL without any checks.
-        Current checks include,
-        (1) if it's a new table, add it's info to metadata table
-        """
+        # Check if values are in the correct format (tuple or list), adjust if it's a dictionary
+        if isinstance(values, dict):
+            # Assume the keys of the dictionary match the placeholders order
+            values = tuple(values[key] for key in sorted(values))
+            
         try:
             self.cursor.execute(sql, values)
-            print("SQL executed successfully!")
         except Exception as e:
             print(f"Error executing SQL: {str(e)}")
     
@@ -71,31 +71,40 @@ class RdsManager():
         self.create_metadata_table()
 
         # Regex to match "CREATE TABLE" with or without "IF NOT EXISTS"
-        create_table_pattern = r"CREATE TABLE(\s+IF NOT EXISTS)?\s+(\w+)\s+\((.+)\)"
-        match = re.search(create_table_pattern, sql, re.IGNORECASE)
+        match_create_pattern = r"CREATE TABLE(\s+IF NOT EXISTS)?\s+(\w+)\s+\((.+)\)"
+        match_drop_pattern = r"DROP TABLE\s+(IF EXISTS\s+)?(\w+);"
+        match_create = re.search(match_create_pattern, sql, re.IGNORECASE)
+        match_drop = re.search(match_drop_pattern, sql, re.IGNORECASE)
 
-        if match:
+
+        if match_create:
             # Execute the SQL without introspection to avoid recursion
             self.execute_core_sql(sql, values)
             
-            table_name = match.group(2)
-            columns_part = match.group(3)
+            table_name = match_create.group(2)
+            columns_part = match_create.group(3)
             
             columns = []
             for column_detail in columns_part.split(','):
                 first_word = column_detail.strip().split()[0]
                 columns.append(first_word)
-
-            print("\n\n\nThe columns created are: ", columns)
             
             # Update metadata with newfound table info
             self.update_metadata(table_name, columns)
-            print(f"Metadata for table '{table_name}' updated.")
+        elif match_drop: 
+            self.execute_core_sql(sql, values)
+            table_name = match_drop.group(2)
+
+            self.delete_metadata(table_name)
         else:
             # If not a CREATE TABLE statement, just execute the SQL
             self.execute_core_sql(sql, values)
 
 
+
+    def delete_metadata(self, table_name):
+        delete_sql = "DELETE FROM metadata WHERE table_name = %s;"
+        self.execute_core_sql(delete_sql, (table_name,))
 
     def sync_jira(self, issues, issue_type):
         # Determine the table name based on the issue type
@@ -129,7 +138,7 @@ class RdsManager():
                 DueDate = EXCLUDED.DueDate;
             """
             values = (issue_id, summary, description, status, created_date, updated_date, due_date)
-            self.execute_sql(sql, values)
+            self.execute_core_sql(sql, values)
 
     def create_tables(self, table_name):
         create_table = f"""
@@ -144,11 +153,12 @@ class RdsManager():
         );
         """
 
+        columns = ["IssueID", "Summary", "Description", "Status", "CreatedDate", "UpdatedDate", "DueDate"]
         # Drop tables first
         self.execute_core_sql(f"DROP TABLE IF EXISTS {table_name}")
 
-        # Add table information to metadata table 
-        self.update_metadata(sql)
+        # Add table information to metadata table  
+        self.update_metadata(table_name, columns)
 
         self.execute_core_sql(create_table)
 
@@ -160,12 +170,12 @@ class RdsManager():
         """
         try:
             self.execute_core_sql(sql)
-            print("Metadata table successfully ensured.")
         except Exception as e:
             print(f"Error creating metadata table: {e}")
             raise 
 
     def update_metadata(self, table_name, columns):
+        self.create_metadata_table()
         update_sql = """
         INSERT INTO metadata (table_name, table_columns)
         VALUES (%s, %s)
