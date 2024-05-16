@@ -1,4 +1,4 @@
-"""Dummy file sending chat request to the backend"""
+"""Test for the /v1/chat endpoint."""
 
 import requests
 
