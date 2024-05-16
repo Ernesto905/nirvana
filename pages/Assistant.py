@@ -20,7 +20,7 @@ def main():
                     st.secrets.db_credentials.PORT,
                     st.secrets.db_credentials.USER,
                     st.secrets.db_credentials.PASS) as db:
-        email = "ernesto90643@gmail.com"
+        email = "ernesto90543@gmail.com"
         db.create_user_schema(email)
         db.switch_user_schema(email)
         get_replicate_api_token()

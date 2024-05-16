@@ -40,7 +40,8 @@ with RdsManager(st.secrets.db_credentials.HOST,
                 st.secrets.db_credentials.PORT,
                 st.secrets.db_credentials.USER,
                 st.secrets.db_credentials.PASS) as db:
-    db.switch_user_schema("ernesto90643@gmail.com")          
+    db.create_user_schema("ernesto90543@gmail.com")
+    db.switch_user_schema("ernesto90543@gmail.com")          
     display_tables(db)
 
     if st.button("show metadata"):
@@ -60,13 +61,17 @@ with RdsManager(st.secrets.db_credentials.HOST,
                     tasks = client.search_with_jql("issuetype = task")
                     bugs = client.search_with_jql("issuetype = bug")
 
+                    print("Hello0")
                     db.sync_jira(epics, 'epic')
+                    print("Hello1")
                     db.sync_jira(tasks, 'task')
+                    print("Hello2")
                     db.sync_jira(bugs, 'bug')
+                    print("Hello3")
+                    st.success("Jira data synced successfully!")
                 except Exception as e:
                     st.error(f"Failed to sync: {e}")
             
-            st.success("Jira data synced successfully!")
 
 
 

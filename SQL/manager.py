@@ -56,15 +56,18 @@ class RdsManager():
         return self.cursor.fetchall()
 
     def execute_core_sql(self, sql, values=None):
-        """Executes SQL without any checks.
-        Current checks include,
-        (1) if it's a new table, add it's info to metadata table
-        """
+        # Check if values are in the correct format (tuple or list), adjust if it's a dictionary
+        if isinstance(values, dict):
+            # Assume the keys of the dictionary match the placeholders order
+            values = tuple(values[key] for key in sorted(values))
+            
         try:
             self.cursor.execute(sql, values)
-            print("SQL executed successfully!")
+            print("SQL executed successfully!", sql)
         except Exception as e:
             print(f"Error executing SQL: {str(e)}")
+            print(f"The SQL we can't execute is: {sql}")
+            print(f"With values: {values}")
     
 
     def execute_sql(self, sql, values=None):
@@ -90,7 +93,6 @@ class RdsManager():
             
             # Update metadata with newfound table info
             self.update_metadata(table_name, columns)
-            print(f"Metadata for table '{table_name}' updated.")
         else:
             # If not a CREATE TABLE statement, just execute the SQL
             self.execute_core_sql(sql, values)
@@ -129,7 +131,7 @@ class RdsManager():
                 DueDate = EXCLUDED.DueDate;
             """
             values = (issue_id, summary, description, status, created_date, updated_date, due_date)
-            self.execute_sql(sql, values)
+            self.execute_core_sql(sql, values)
 
     def create_tables(self, table_name):
         create_table = f"""
@@ -144,11 +146,12 @@ class RdsManager():
         );
         """
 
+        columns = ["IssueID", "Summary", "Description", "Status", "CreatedDate", "UpdatedDate", "DueDate"]
         # Drop tables first
         self.execute_core_sql(f"DROP TABLE IF EXISTS {table_name}")
 
-        # Add table information to metadata table 
-        self.update_metadata(sql)
+        # Add table information to metadata table  
+        self.update_metadata(table_name, columns)
 
         self.execute_core_sql(create_table)
 
@@ -160,12 +163,12 @@ class RdsManager():
         """
         try:
             self.execute_core_sql(sql)
-            print("Metadata table successfully ensured.")
         except Exception as e:
             print(f"Error creating metadata table: {e}")
             raise 
 
     def update_metadata(self, table_name, columns):
+        self.create_metadata_table()
         update_sql = """
         INSERT INTO metadata (table_name, table_columns)
         VALUES (%s, %s)
@@ -173,6 +176,7 @@ class RdsManager():
             table_columns = EXCLUDED.table_columns;
         """
         # Execute using execute_core_sql to avoid triggering additional checks
+        print("\n\n\n ---- I am here in update_metadata. This should work!", table_name, columns)
         self.execute_core_sql(update_sql, (table_name, columns))
 
     def get_metadata(self):
