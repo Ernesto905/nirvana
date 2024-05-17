@@ -17,7 +17,7 @@ class JiraClient:
 
     def projects(self):
         """
-        Returns all jira projects
+        Returns all jira projects as a python list 
         """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.project_api_path}"
 
@@ -29,13 +29,16 @@ class JiraClient:
 
     
     def get_all_issues(self):
+        """
+        Returns all issues in an account as a python dict 
+        """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.search_api_path}"
 
         response = requests.get(url, headers=self.headers)
         response.raise_for_status()
 
         data = response.json()
-        return json.dumps(data)
+        return data
     
     def search_with_jql(self, jql):
         """
@@ -203,7 +206,7 @@ class JiraClient:
         return issue
 
 
-        def get_transitions(self):
+    def get_transitions(self):
         """Get allowed transitions for an issue"""
         issue = "KAN-3"
 
@@ -247,8 +250,24 @@ class JiraClient:
         return [transition['name'] for transition in transitions_json.get('transitions', [])]
 
 
+    def get_allowed_params(self): 
+        """
+        This function returns one big payload where, for each project, 
+        it lists out 
+            issues : []
+            members : []
+            labels : []
+            priorities : []
+            statuses : []
 
+        return type: Python Dictionary
+        """
 
+        projects = [project['name'] for project in self.projects() if 'name' in project]
+        # issues = 
+        
+    
+        
 
 
 

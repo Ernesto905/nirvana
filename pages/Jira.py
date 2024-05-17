@@ -133,3 +133,18 @@ else:
             st.success(f"Transitions obtained: {transitions}")
         except Exception as e:
             st.error(f"Failed to get transitions: {e}")
+
+    if st.button("get proje"):
+        try:
+            issues = client.projects()
+            st.success(f"issues obtained: {type(issues)}")
+        except Exception as e:
+            st.error(f"Failed to get projects: {e}")
+
+
+    if st.button("get issues"):
+        try:
+            issues = client.get_all_issues()
+            st.success(f"issues obtained: {type(issues)}")
+        except Exception as e:
+            st.error(f"Failed to get projects: {e}")
