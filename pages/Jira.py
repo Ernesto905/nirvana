@@ -109,16 +109,9 @@ else:
     issue = st.text_input("Issue title")
     username = st.text_input("Assignee")
     priority = st.selectbox("Select Priority", options=["Low", "Medium", "High", "Highest", "null"])
-    status = st.selectbox("Select a status for this issue", options=["TO DO", "IN PROGRESS", "DONE"])
+    status = st.selectbox("Select a status for this issue", options=["To Do", "In Progress", "Done"])
     # due_date = st.date_input("Select a due date:")
     due_date = "2024-10-10"
-
-    
-    # Format the date as YYYY-MM-DD
-    # if due_date is not None:
-    #     formatted_date = due_date.strftime('%Y-%m-%d')
-    #     due_date = formatted_date
-    # 
 
     if st.button("Update Issue"):
         # Attempt to create an issue using the provided inputs.
@@ -132,3 +125,11 @@ else:
                 st.error("Failed to create issue: please enter a valid user")
             else: 
                 st.error("Failed to create issue: " + str(e))
+
+    # Testing
+    if st.button("get transitions"):
+        try:
+            transitions = client.get_transitions()
+            st.success(f"Transitions obtained: {transitions}")
+        except Exception as e:
+            st.error(f"Failed to get transitions: {e}")
