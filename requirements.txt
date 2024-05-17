@@ -17,3 +17,4 @@ jira
 flask
 redis
 async_timeout
+streamlit_cookies_controller

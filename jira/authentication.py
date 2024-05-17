@@ -1,5 +1,4 @@
 import os
-import json
 import secrets
 import requests
 from dotenv import load_dotenv
@@ -10,7 +9,7 @@ def get_authorization_url():
     scopes = ['read%3Ajira-work', 'manage%3Ajira-project', 'manage%3Ajira-configuration', 'write%3Ajira-work']
     state = secrets.token_urlsafe(16)
 
-    authorization_url = f"""https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id={os.getenv('JIRA_CLIENT_ID')}&scope={scopes[0]}%20{scopes[1]}%20{scopes[2]}%20{scopes[3]}&redirect_uri={os.getenv('REDIRECT_URI')}&state={state}&response_type=code&prompt=consent"""
+    authorization_url = f"""https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id={os.getenv('JIRA_CLIENT_ID')}&scope={scopes[0]}%20{scopes[1]}%20{scopes[2]}%20{scopes[3]}&redirect_uri={os.getenv('JIRA_REDIRECT_URI')}&state={state}&response_type=code&prompt=consent"""
 
     return authorization_url, state
 
@@ -19,7 +18,7 @@ def get_access_token(code):
     data = {
         'grant_type': 'authorization_code',
         'client_id': os.getenv('JIRA_CLIENT_ID'),
-        'client_secret': os.getenv('CLIENT_SECRET'),
+        'client_secret': os.getenv('JIRA_CLIENT_SECRET'),
         'code': code,
         'redirect_uri': "http://localhost:8501" 
     }

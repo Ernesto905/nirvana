@@ -1,13 +1,15 @@
 import base64
 import re
 
+from gmail import get_gmail_credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 
-def get_messages(session, maxResults=10, page_number=1, query=""):
+def get_messages(gmail_uuid, session, maxResults=10, page_number=1, query=""):
     try:
-        service = build("gmail", "v1", credentials=session.creds)
+        creds = get_gmail_credentials(gmail_uuid)
+        service = build("gmail", "v1", credentials=creds)
 
         page_id = get_page_id(service, session, maxResults, page_number, query)
 
@@ -164,7 +166,11 @@ def parse_date(date: str) -> dict:
     expression = r"^(?P<day_of_week>\w{3}),\s+(?P<day>\d{1,2})\s+(?P<month>\w+)\s+(?P<year>\d+)\s+(?P<time>.*)$"
     search_result = re.search(expression, date)
     if not search_result:
-        return {}
+        return {"day_of_week": "",
+                "day": "",
+                "month": "",
+                "year": "",
+                "time": ""}
     result = search_result.groupdict()
     result["day"] = int(result["day"])
     result["year"] = int(result["year"])

@@ -1,13 +1,13 @@
-import sys
-print("PATH IS: ", sys.path)
-
-import streamlit as st 
-from gmail.authentication import login, logout
+import time
+import streamlit as st
+from gmail import logout, get_gmail_auth_url, get_gmail_access_token, gmail_credentials_exists
 from jira.authentication import *
-from jira.client import JiraClient
+from streamlit_cookies_controller import CookieController
 
 # Set page title and favicon
 st.set_page_config(page_title="Nirvana", page_icon=":peace_symbol:")
+
+cookie_controller = CookieController()
 
 # Custom CSS styles
 st.markdown("""
@@ -56,26 +56,58 @@ st.write("Unifying Projects and Breaking Silos")
 st.write("Seamlessly integrate emails, Jira, and SQL databases for streamlined project management.")
 
 st.subheader("Authentication")
-logged_in = st.session_state.get("logged_in", False)
+
+gmail_uuid = None
+jira_uuid = None
+try:
+    gmail_uuid = cookie_controller.get('gmail_uuid')
+    jira_uuid = cookie_controller.get('gmail_uuid')
+except TypeError:
+    pass
+
 
 col1, col2 = st.columns(2, gap="large")  # Adjust the column widths here
 
+scope = st.query_params.get('scope')
+gmail_clicked = False
+jira_clicked = False
+if scope and 'google' in scope:
+    gmail_clicked = True
+if scope and 'jira' in scope:
+    jira_clicked = True
+
 with col1:
-    if not logged_in:
-        login_button = st.button("Authenticate Google :key:")
-        if login_button:
-            # Perform login logic here
-            login(st.session_state)
+    if not gmail_uuid or not gmail_credentials_exists(gmail_uuid):
+        if gmail_clicked:
+            state = cookie_controller.get('gmail_state')
+            response_params = {
+                "state": st.query_params.get('state'),
+                "code": st.query_params.get('code'),
+                "scope": st.query_params.get('scope')
+            }
+            id = get_gmail_access_token(response_params['state'], response_params)
+            if id:
+                cookie_controller.set('gmail_uuid', id)
+            st.query_params.clear()
+            time.sleep(0.1)
             st.rerun()
+        else:
+            gmail_auth_url, gmail_state = get_gmail_auth_url()
+            button_html = f'<a href="{gmail_auth_url}" target="_self"><button class="custom-button">Authenticate Google :key:</button></a>'
+            st.markdown(button_html, unsafe_allow_html=True)
+            cookie_controller.set('gmail_state', gmail_state)
+            time.sleep(0.1)
     else:
         logout_button = st.button("Logout from Google")
         if logout_button:
-            logout(st.session_state)
+            logout(gmail_uuid)
+            cookie_controller.remove('gmail_uuid')
+            time.sleep(0.1)
             st.rerun()
 
 with col2:
     if "access_token" not in st.session_state:
-        if 'code' in st.query_params:
+        if jira_clicked:
             authorization_code = st.query_params['code']
             st.query_params.clear()
             access_token = get_access_token(authorization_code)
@@ -88,7 +120,7 @@ with col2:
             st.session_state['auth_state'] = state
 
             # Display the button with custom styling
-            button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button">Authenticate Jira :key:</button></a>'
+            button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button" id="jira_button">Authenticate Jira :key:</button></a>'
             st.markdown(button_html, unsafe_allow_html=True)
     else:
         jira_inauth = st.button("Logout from Jira")
@@ -98,7 +130,7 @@ with col2:
             del st.session_state["JiraClient"]
             st.rerun()
 
-if logged_in:
+if gmail_uuid and gmail_credentials_exists(gmail_uuid):
     st.success("Successfully authenticated with Google")
 
 if "access_token" in st.session_state:

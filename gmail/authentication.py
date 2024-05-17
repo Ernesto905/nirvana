@@ -1,45 +1,75 @@
 import os
+import uuid
 import json
+import redis
 
 from dotenv import load_dotenv
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 load_dotenv()
 
+HOST = 'http://localhost:8501/'
 
-def login(session):
-    creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+credentials_json = {
+    "web": {
+        "client_id": os.getenv('GMAIL_CLIENT_ID'),
+        "client_secret": os.getenv('GMAIL_CLIENT_SECRET'),
+        "project_id": "artic-hackathon-2024",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "redirect_uris": [
+            "http://localhost/",
+            "http://127.0.0.1/"
+        ]
+    }
+}
 
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            with open("credentials.json") as f:
-                credentials_json = json.load(f)
-                credentials_json["web"]["client_secret"] = os.environ["GMAIL_CLIENT_SECRET"]
-            flow = InstalledAppFlow.from_client_config(credentials_json, SCOPES)
-            creds = flow.run_local_server(port=0, authorization_prompt_message="")
+SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-        # Save the credentials for the next run
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
-
-    # Update streamlit session
-    session.logged_in = True
-    session.creds = creds
+redis_client = redis.Redis(host='redis-app', port=6379, db=0)
 
 
-def logout(session):
-    session.creds = None
-    if os.path.exists("token.json"):
-        os.remove("token.json")
-    session.logged_in = False
+def get_gmail_auth_url():
+    flow = Flow.from_client_config(credentials_json, SCOPES)
+    flow.redirect_uri = HOST
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true'
+    )
+    return authorization_url, state
+
+
+def get_gmail_access_token(state, response_params):
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Remove this later when we get https
+
+    # Add state back to client config
+    flow = Flow.from_client_config(credentials_json, SCOPES)
+    flow.redirect_uri = HOST
+
+    authorization_response = f'{HOST}?state={response_params["state"]}&code={response_params["code"]}&state={response_params["scope"]}'
+    try:
+        flow.fetch_token(authorization_response=authorization_response)
+    except Exception as e:
+        print(e)
+        return None
+
+    id = str(uuid.uuid4())
+    redis_client.set(id, flow.credentials.to_json(), ex=3600)
+    return id
+
+
+def logout(id):
+    redis_client.delete(id)
+
+
+def get_gmail_credentials(id):
+    data = redis_client.get(id)
+    data = json.loads(data) if data else None
+    return Credentials.from_authorized_user_info(data) if data else None
+
+
+def gmail_credentials_exists(id):
+    data = redis_client.get(id)
+    return json.loads(data) is not None
