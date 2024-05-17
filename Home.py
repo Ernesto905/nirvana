@@ -1,5 +1,4 @@
 import sys
-print("PATH IS: ", sys.path)
 
 import streamlit as st 
 from gmail.authentication import login, logout

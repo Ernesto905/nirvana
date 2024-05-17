@@ -28,7 +28,7 @@ class JiraClient:
         data = response.json()
         return data
 
-
+    
     def get_all_issues(self):
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.search_api_path}"
 
@@ -37,7 +37,7 @@ class JiraClient:
 
         data = response.json()
         return json.dumps(data)
-
+    
     def search_with_jql(self, jql):
         """
         Perform search with JQL-- Jira's inbuild query language. 
@@ -67,21 +67,21 @@ class JiraClient:
         return user_id
 
     """
-    project -> Key for our project. Only current project is "KAN" 
-    summary -> A string of text recapping the issue 
-    description -> A more in depth paragraph of the issue 
-    assignee -> An ID associated with the assignee for this issue 
-        to obtain, call get_userid_by_name("ernesto enriquez")
-    priority -> An ID associated with the priority for this project 
-        Currently allows for "Low", "Medium", "High", "Highest"
+    Below are the functions to create and update a jira issue. 
 
-    TODO:
-    - update_issue(issue_key, summary, description, assignee, priority)
-    - create_task(issue_key, summary, description, assignee, priority)
-    - update_task(task_key, summary, description, assignee, priority)
+    Parameters: 
+        project -> str : Key for our project. Only current project is "KAN" 
+        summary -> str: Text recapping the issue 
+        description -> str: A more in depth paragraph of the issue 
+        assignee -> str: An ID associated with the assignee for this issue 
+            to obtain by name, call get_userid_by_name("ernesto enriquez")
+        priority -> str: An ID associated with the priority for this project 
+            Currently allows for "Low", "Medium", "High", "Highest"
+        due_date -> str: A date in the following form YYYY-MM-DD
+        labels -> str[]: A list of strings, each indicating a lable
     """
 
-    def create_issue(self, project, summary, description, assignee, priority, issue_type):
+    def create_issue(self, project, summary, description, assignee, priority, issue_type, due_date, labels):
         """
         Creates a jira issue of a given type and assign it to a given user.  
         """
@@ -118,8 +118,9 @@ class JiraClient:
                     ]
                 },
                 "priority": {
-                  "name": "Low"
+                  "name": priority
                 },
+                "duedate": due_date,
                 "issuetype": {
                     "name": issue_type
                 }
@@ -132,11 +133,37 @@ class JiraClient:
         data = response.json()
         return json.dumps(data)
 
-    def update_issue(issue_key, summary, description, assignee, priority):
-        pass
+    def update_issue(self, issue, due_date, assignee, status, priority):
+        """
+        Updates a current jira issue with a due date, status, and priority.  
+        issue parameter can be either an ID or the Name of the issue (also known as the "Key")
+        """
+        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}/{issue}"
 
-    def create_task(issue_key, summary, description, assignee, priority):
-        pass
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
 
-    def update_task(task_key, summary, description, assignee, priority):
+        data = json.dumps({
+            "fields": {
+                "assignee": {
+                    "id": assignee
+                },
+                "priority": {
+                  "name": priority 
+                },
+                "duedate": due_date
+            }
+        })
+
+        response = requests.put(url, headers=headers, data=data)
+        if response.status_code != 204:
+            response.raise_for_status()
+
+        return issue
+
+
+    def transfer_issue(status):
         pass
