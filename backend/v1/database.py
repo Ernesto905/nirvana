@@ -5,10 +5,10 @@ import re
 class RdsManager():
     def __init__(self, host, port, user, password):
         self.host = host
-        self.port = port 
-        self.user = user 
-        self.password = password 
-        self.conn = None 
+        self.port = port
+        self.user = user
+        self.password = password
+        self.conn = None
         self.cursor = None
 
     def __enter__(self):
@@ -65,7 +65,7 @@ class RdsManager():
             self.cursor.execute(sql, values)
         except Exception as e:
             print(f"Error executing SQL: {str(e)}")
-    
+
 
     def execute_sql(self, sql, values=None):
         self.create_metadata_table()
@@ -189,7 +189,7 @@ class RdsManager():
         fetch_sql = "SELECT table_name, table_columns FROM metadata"
         self.cursor.execute(fetch_sql)
         rows = self.cursor.fetchall()
-        
+
         metadata_dict = {row[0]: row[1] for row in rows}
         return metadata_dict
 
