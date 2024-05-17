@@ -13,7 +13,8 @@ def google_auth_required(func):
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
-        token = request.headers.get('google-auth-token')
+        data = request.get_json()
+        token = data.get('google-auth-token')
         if not token:
             return jsonify({"status": 401, "response": "Unauthorized"})
         return func(*args, **kwargs)
@@ -25,7 +26,8 @@ def jira_auth_required(func):
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
-        token = request.headers.get('jira-auth-token')
+        data = request.get_json()
+        token = data.get('jira-auth-token')
         if not token:
             return jsonify({"status": 401, "response": "Unauthorized"})
         return func(*args, **kwargs)
