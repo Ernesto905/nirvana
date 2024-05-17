@@ -141,10 +141,17 @@ def get_jira_actions(email: str, context: dict) -> dict:
         what are some helpful actions that we can take with JIRA based on the email content? Identify
         possible actions based on action items, deadlines, assignments, and other relevant information in the email,
         and return a Python list of the different actions we should take. Note that creating
-        entire projects is out of scope for this task. We are only concerned with updating or creating
-        epics, issues, and tasks, and assigning them to the appropriate team members.
+        entire projects is out of scope for this task. We are only concerned with the following actions:
+        - Creating new issues (epics, tasks, or sub-tasks) 
+            - Setting assignees, due dates, and labels
+        - Updating existing issues in the following ways:
+            - Changing issue status (TO DO, IN PROGRESS, DONE)
+            - Changing issue assignee
+            - Changing due dates
+            - Change labels
 
-        If there are no actions to take, return "NONE". Otherwise, return a Python formatted list of the actions.
+        If there are no actions to take, return "NONE". Otherwise, return a Python formatted list of the actions, such that the actions
+        are dictionaries.
         The actions should only be actions that are specific and actionable in JIRA.
         """
     )
@@ -280,12 +287,13 @@ def extract_features(email: str, schema: str) -> dict:
     This involves identifying key data points from the email, deciding what would be relevant for providing future recommendations or insights,
     and storing this information in the database based on the provided schema. Note that data about projects, issues, tasks, and users are already stored in the database, so specific JIRA-related information should not be extracted as it would be redundant.
     Rather, focus on extracting details from the emails, such as dates, names, changes, patterns, or any other relevant information that could be useful for future analysis or recommendations.
+    We are also interested in making observations about people, dates, and other entities mentioned in the email that could be relevant for future insights.
 
     Given the below email, and what our database currently looks like,
     return a list of SQL statements that will be executed consecutively to store the extracted information in the database.
-    Be mindful of existing tables. If a table does not exist and you believe we should create it (and, critically, it will be used later!), create it. 
-    If a table needs to be modified, modify it. You can take liberties here - but be mindful of the fact that 
-    the SQL statements should be valid and executable, and will be executed in the order you provide them.
+    Be mindful of existing tables. If a table does not exist and you believe we should create it (and, critically, that it will be useful later!), create it. 
+    If a table needs to be modified, modify it.
+    The SQL statements should be valid and executable, and will be executed in the order you provide them.
 
     Return the statements in Python strings in a Python list. If no information needs to be stored, return an empty list.
     """
@@ -332,7 +340,7 @@ def extract_features(email: str, schema: str) -> dict:
         ]
         """
     }, 
-    {    
+    {
         "email": """
         Subject: Revised Budget Estimates for Project Mercury
         From: Alice Johnson alicejohnson@vendor.com
@@ -382,7 +390,15 @@ def extract_features(email: str, schema: str) -> dict:
         | StrOutputParser()
     )
 
-    output = chain.invoke({"email": email, "schema": schema})
+    # print("Given email:", email)
+    # print("Schema:", schema)
+
+    try:
+        output = chain.invoke({"email": email, "schema": schema})
+    except Exception as e:
+        print("Error with feature extraction chain invocation:", e)
+        output = []
+    # print("Output:", output)
 
     return {"extracted_information": literal_eval(output)}
 
