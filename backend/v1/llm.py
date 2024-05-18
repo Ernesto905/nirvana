@@ -1,4 +1,4 @@
-from utils.wrappers import Arctic
+from utils.wrappers import Arctic, GPT
 from pydantic import BaseModel, Field
 
 from langchain_core.output_parsers import StrOutputParser
@@ -8,8 +8,11 @@ from langchain_core.prompts import (
 )
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableLambda
+from langchain.agents import initialize_agent, Tool
+from langchain.chains import LLMMathChain
 from ast import literal_eval
 from backend.v1.database import RdsManager
+import os
 
 _SYS_PROMPT = """
 System: You are working for the software app Nirvana, which helps users (often managers of teams)
@@ -434,39 +437,6 @@ def generate_sql(request: str, schema: str) -> dict:
 
     return {"sql_query": output}
 
-def route_agent(message: str, agents: list[Agent], schema: str | None = None) -> dict:
-    options = ["SELF"] + [agent.name for agent in agents]
-
-    print(f"Agents {agents}")
-
-    chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT + f"""
-            You are a supervisor, tasked with managing user requests while having access to the
-            following members on your team: 
-
-            {agents}
-
-            Given the following user request, classify it as being a request you could either fulfill yourself, or that
-            one of your team members could better handle.
-
-            Select one of: {options}
-            """
-            + (f"To help with your decision, here is what our database schema currently looks like: {schema}" if schema else "")
-            + """
-            Request: {message}
-            """
-        )
-        | Arctic()
-        | StrOutputParser()
-    )
-
-    result = chain.invoke({"message": message})
-
-    print("Route agent result:", result)
-
-    return result
-
 class Function(BaseModel):
     string: str = Field(..., title="The function and its parameters as a Python function call string")
     description: str = Field(..., title="Description of the function")
@@ -485,155 +455,54 @@ class ChatArctic:
     - Answer specific questions about the data
     """
     def __init__(self, rds: RdsManager):
-        self.model = Arctic()
-
-        plotter_agent = Agent(name="Plotter", 
-                          description="Agent that can retrieve and plot data from the database - use if the user asks for data visualization.")
-        sql_agent     = Agent(name="SQL Query", 
-                          description="Agent that can generate SQL queries based on user requests and the database schema - use if the user is asking a question that we need data to answer.")
-
-        self.agents = [
-            plotter_agent,
-            sql_agent
-        ]
-
         self.rds = rds
 
-    def invoke(self, message: str) -> str:
-
-        def route(inp: dict) -> dict:
-            agent = inp["request"]
-            print("-route Agent:", agent)
-            if agent == "SELF":
-                return (
-                    PromptTemplate.from_template(
-                        _SYS_PROMPT + """
-                        {request}
-                        """
-                    )
-                    | Arctic()
-                    | StrOutputParser()
-                )
-            else:
-                print("Agent selected:", agent)
-
-                if agent == "Plotter":
-                    ...
-                elif agent == "SQL Query":
-
-                    def execute_sql(query: str) -> dict:
-                            print("execute_sql - Executing query:", query)
-                            output = self.rds.execute_sql(query)
-                            print("execute_sql - Output:", output)
-                            return output
-
-                    context = self.rds.get_metadata()
-
-                    print("SQL Query context:", context)
-
-                    return (
-                        {"request": lambda x: x["request"], "schema": context}
-                        | RunnableLambda(lambda x: {
-                            "request": x["request"], 
-                            "query": generate_sql(x["request"], x["schema"])
-                            }
-                        )
-                        | RunnableLambda(lambda x: {
-                            "query": lambda x: x, "output": execute_sql(x["sql_query"])
-                            }
-                        )
-                        | {"output": lambda x: x["output"], "query": lambda x: x["query"]}
-                        | PromptTemplate.from_template(
-                            _SYS_PROMPT = """
-                            In response to the following user request, we executed the following SQL query:
-
-                            {request}
-
-                            SQL Query: {query}
-
-                            Result: {output}
-
-                            Answer the user's request with the data retrieved from the database.
-                            """
-                        )
-                        | Arctic()
-                        | StrOutputParser()
-                    )
-                else:
-                    # TODO: in the future automatically pick closest levenshtein distance agent
-                    raise ValueError(f"Invalid agent {agent} selected.")
-
-        chain = (
-            # first step of chain:
-            # given what the current database looks like, make a decision about whether we need to use one of the
-            # agents or if the request is something else like a trivial or question or maybe something out of scope
-            RunnableLambda(lambda x: {"request" : route_agent(x, self.agents, dict_to_str(self.rds.get_metadata()))})
-            # second step of chain:
-            # given the decision, route the message to the appropriate agent
-            | RunnableLambda(route)
+        llm_math = LLMMathChain(llm=Arctic(), verbose=True)
+        math_tool = Tool(
+            name='Calculator',
+            func=llm_math.run,
+            description="Useful for when you need to answer questions about math."
         )
 
-        # return self.model.invoke(message)
-        return chain.invoke(message)
+        # sql_tool = Tool(
+        #     name='SQL Query Generator',
+        #     func=lambda x: generate_sql(x, dict_to_str(self.rds.get_metadata())),
+        #     description="Generates SQL queries based on a provided request. Be specific in your request to get better results. Tool already knows the schema of the database."
+        # )
 
-if __name__ == "__main__":
+        sql_executor = Tool(
+            name='SQL Executor',
+            func=lambda x: self.rds.execute_core_sql(x),
+            description="Executes SQL queries on the database. Ensure that the queries are safe, are valid, and do not contain invalid characters. You should pass only a SQL query string to this tool."
+        )
 
-    email = """
-        Subject: Urgent: High Latency Issue Detected in Ride API
+        tools = [math_tool, sql_executor]
 
-        From: system_monitoring@ridecompany.com
+        self.agent = initialize_agent(
+            agent="zero-shot-react-description",
+            tools=tools,
+            llm=GPT(model="gpt-4o", temperature=0.4, api_key=os.getenv("OPENAI_API_KEY")),
+            max_iterations=4,
+            verbose=True # Set to False for production
+        )
 
-        Date: May 10, 2024, 09:15 AM
+    def invoke(self, message: str) -> str:
+        metadata = self.rds.get_metadata()
+        print("-llm.py Metadata:", metadata)
+        return self.agent.run(_SYS_PROMPT 
+                            + f"""
+                            You are ChatNirvana, a chatbot assistant that helps users by answering questions about their data that we have stored.
+                            Given the user's message, provide a response that thoroughly answers their question or query. You can use the tools available to you to help answer the user's questions.
+                            This may involve generating SQL queries, performing calculations, generating visualizations, and/or providing explanations based on the data we have stored.
 
-        To: john.doe@ridecompany.com
+                            If you need to generate a query, assume that information the user may give you to identify the appropriate data is very likely inaccurate and just generally referencing the real values.
+                            For instance, a user may say "I want to see the data for the feedback table", but the actual table name is "client_feedback".
+                            Sometimes, it may be better to execute a query to get all of the values in question to figure out what the user is talking about.
+                            For instance, if a user makes a vague request referencing a task that is about "budgets", you may want to execute a query to get all of task descriptions to see which one, or which ones, they are specifically referencing.
 
-        Dear John,
+                            For context, this is what the database tables and columns currently look like:
+                            {metadata}
 
-        We have detected an unexpected spike in latency on the Ride API today at 08:45 AM, with response times exceeding 500ms, which is beyond the acceptable threshold of 200ms. This issue appears to be impacting multiple endpoints, particularly those handling ride booking requests.
-
-        Initial Findings:
-
-        The latency spike correlates with a significant increase in ride booking requests.
-        Preliminary logs indicate possible database bottlenecks.
-        Impact:
-
-        Increased customer complaints about app responsiveness.
-        Potential drop in user satisfaction and increased churn risk.
-        Please address this as a priority.
-
-        Best Regards,
-        System Monitoring Team
-        Ride Company
-    """
-
-    context = {
-        "projects": ["Ride Operations", "API Development", "Customer Service Platform"],
-        "issues": ["Ride-142: Ride API Latency Over 300ms Last Quarter", 
-                   "Ride-198: Database Optimization for Scalability", 
-                   "CUST-77: Customer Complaints on App Responsiveness"],
-        "recent updates": ["RIDE-198 updated yesterday with new DB schema proposals.",
-                           "CUST-77 has a scheduled review today to discuss recent feedback trends."],
-        "users": ["john.doe", "jane.smith", "admin"]
-    }
-
-    actions = get_jira_actions(email, context)
-
-    print("==Suggested actions==\n\n", actions["actions"])
-
-    for action in actions["actions"]:
-        api_call = get_jira_api_call(email, action, context)
-        print("API Call:", api_call["api_call"])
-
-    # extracted_info = extract_features(email, """
-    #     Table: System Alerts
-    #     Columns:
-    #     - sender: VARCHAR(255)
-    #     - date: DATE
-    #     - subject: VARCHAR(255)
-    #     - message: TEXT
-    #     - recipient: VARCHAR(255)
-    #     - impact: TEXT
-    #     - findings: TEXT
-    # """)
-    # print("==Extracted Information==\n\n", extracted_info["extracted_information"])
-
+                            User's Message:
+                            """
+                            + message)
