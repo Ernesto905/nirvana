@@ -19,7 +19,7 @@ def chat():
     # token = data.get('google-auth-token') # UNCOMMENT AFTER TESTING
     # get email from token
     user_email = ... # TODO
-    user_email = "ernesto90643@gmail.com"
+    user_email = "ernesto90543@gmail.com"
 
     try:
         user_message = user_message.strip()
