@@ -50,31 +50,8 @@ def generate_gmail_access_token(state, response_params):
     try:
         flow.fetch_token(authorization_response=authorization_response)
     except Exception as e:
-        print(e)
+        print(e, flush=True)
         return None
-    # headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    # data = {
-    #     'code': response_params['code'],
-    #     'client_id': os.getenv('GMAIL_CLIENT_ID'),
-    #     'client_secret': os.getenv('GMAIL_CLIENT_SECRET'),
-    #     'redirect_uri': HOST,
-    #     'grant_type': 'authorization_code'
-    # }
-    # result = requests.post('https://oauth2.googleapis.com/token', data=data, headers=headers)
-    # print(response_params['code'])
-    # print(result.json())
-    # print(result.json().get('access_token'))
-    #
-    # data = {
-    #     'client_id': os.getenv('GMAIL_CLIENT_ID'),
-    #     'client_secret': os.getenv('GMAIL_CLIENT_SECRET'),
-    #     'refresh_token': '1//05JRapfFXlhd1CgYIARAAGAUSNwF-L9Irh4QmiA9y0QasxmXsVm5tRFCiVm34sQwlMDxy91HdXjLDxWEdBVYznp42VkkiIgT7aU8',
-    #     'grant_type': 'refresh_token'
-    # }
-    # result = requests.post('https://oauth2.googleapis.com/token', data=data, headers=headers)
-    # print(response_params['code'])
-    # print(result.json())
-    # print(result.json().get('access_token'))
 
     id = str(uuid.uuid4())
     redis_client.set(id, flow.credentials.to_json(), ex=3600)
@@ -92,6 +69,5 @@ def get_gmail_credentials(id):
 
 
 def gmail_credentials_exists(id):
-    # data = redis_client.get(id)
-    # return data is not None
-    return False
+    data = redis_client.get(id)
+    return data is not None
