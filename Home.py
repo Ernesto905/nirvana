@@ -1,7 +1,8 @@
+import sys
 import time
 import streamlit as st
 from gmail import logout_gmail, get_gmail_auth_url, generate_gmail_access_token, gmail_credentials_exists
-from jira import logout_jira, get_jira_authorization_url, get_jira_access_token_and_cloudid, jira_access_token_exists
+from jira import logout_jira, get_jira_authorization_url, get_jira_access_token_and_cloudid, jira_access_token_exists, generate_jira_access_token
 from streamlit_cookies_controller import CookieController
 
 # Set page title and favicon
@@ -70,10 +71,12 @@ col1, col2 = st.columns(2, gap="large")  # Adjust the column widths here
 
 scope = st.query_params.get('scope')
 gmail_clicked = False
-jira_clicked = False
 if scope and 'google' in scope:
     gmail_clicked = True
-if scope and 'jira' in scope:
+code = st.query_params.get('code')
+jira_clicked = False
+if code and not scope:
+    print("here3", file=sys.stderr, flush=True)
     jira_clicked = True
 
 with col1:
@@ -88,15 +91,16 @@ with col1:
             id = generate_gmail_access_token(response_params['state'], response_params)
             if id:
                 cookie_controller.set('gmail_uuid', id)
+                time.sleep(0.1)
             st.query_params.clear()
-            time.sleep(0.1)
             st.rerun()
         else:
             gmail_auth_url, gmail_state = get_gmail_auth_url()
             button_html = f'<a href="{gmail_auth_url}" target="_self"><button class="custom-button">Authenticate Google :key:</button></a>'
             st.markdown(button_html, unsafe_allow_html=True)
-            cookie_controller.set('gmail_state', gmail_state)
-            time.sleep(0.1)
+            if gmail_state:
+                cookie_controller.set('gmail_state', gmail_state)
+                time.sleep(0.1)
     else:
         logout_button = st.button("Logout from Google")
         if logout_button:
@@ -107,10 +111,18 @@ with col1:
 
 with col2:
     if not jira_uuid or not jira_access_token_exists(jira_uuid):
+        print("here4", file=sys.stderr, flush=True)
         if jira_clicked:
+            print("here5", file=sys.stderr, flush=True)
             authorization_code = st.query_params['code']
             st.query_params.clear()
-            st.rerun()
+            id = generate_jira_access_token(authorization_code)
+            print(f"here6 [{id}]", file=sys.stderr, flush=True)
+            if id:
+                cookie_controller.set('jira_uuid', id)
+                time.sleep(1)
+            # st.query_params.clear()
+            # st.rerun()
         else:
             authorization_url, state = get_jira_authorization_url()
 
