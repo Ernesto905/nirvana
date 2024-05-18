@@ -256,7 +256,7 @@ class JiraClient:
         Returns:
             str: JSON string containing structured data on projects and associated issues.
         """
-        projects = self.projects()  # Retrieve all projects
+        projects = self.projects()  
         output = {}
 
         for project in projects:
@@ -268,15 +268,16 @@ class JiraClient:
                 "priorities": set()   
             }
 
+            # Extract issues for each project using JQL or an appropriate method
             project_issues = self.search_with_jql(f'project = "{project_name}"')
             for issue in project_issues['issues']:
-                # Simplifying the issue data and extracting relevant member (assignee) info
                 assignee_data = issue['fields'].get('assignee')
                 simplified_issue = {
                     "id": issue.get('id'),
                     "key": issue.get('key'),
                     "summary": issue['fields'].get('summary', 'No summary provided'),
                     "status": issue['fields'].get('status', {}).get('name', 'Unknown status'),
+                    "duedate": issue['fields'].get('duedate', 'No due date'),
                     "assignee": {
                         "name": assignee_data.get('displayName', 'Unassigned') if assignee_data else 'Unassigned',
                         "email": assignee_data.get('emailAddress', 'No email available') if assignee_data else 'No email available'
@@ -284,11 +285,9 @@ class JiraClient:
                 }
                 project_data['issues'].append(simplified_issue)
 
-                # Accumulating unique assignees
                 if assignee_data:
                     project_data['members'].add(assignee_data['displayName'])
 
-                # Optionally, track unique labels and priorities
                 project_data['labels'].update(issue['fields'].get('labels', []))
                 if issue['fields'].get('priority'):
                     project_data['priorities'].add(issue['fields']['priority']['name'])
