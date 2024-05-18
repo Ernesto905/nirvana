@@ -1,7 +1,7 @@
 import time
 import streamlit as st
-from gmail import logout, get_gmail_auth_url, get_gmail_access_token, gmail_credentials_exists
-from jira.authentication import *
+from gmail import logout_gmail, get_gmail_auth_url, generate_gmail_access_token, gmail_credentials_exists
+from jira import logout_jira, get_jira_authorization_url, get_jira_access_token_and_cloudid, jira_access_token_exists
 from streamlit_cookies_controller import CookieController
 
 # Set page title and favicon
@@ -61,7 +61,7 @@ gmail_uuid = None
 jira_uuid = None
 try:
     gmail_uuid = cookie_controller.get('gmail_uuid')
-    jira_uuid = cookie_controller.get('gmail_uuid')
+    jira_uuid = cookie_controller.get('jira_uuid')
 except TypeError:
     pass
 
@@ -85,7 +85,7 @@ with col1:
                 "code": st.query_params.get('code'),
                 "scope": st.query_params.get('scope')
             }
-            id = get_gmail_access_token(response_params['state'], response_params)
+            id = generate_gmail_access_token(response_params['state'], response_params)
             if id:
                 cookie_controller.set('gmail_uuid', id)
             st.query_params.clear()
@@ -100,38 +100,35 @@ with col1:
     else:
         logout_button = st.button("Logout from Google")
         if logout_button:
-            logout(gmail_uuid)
+            logout_gmail(gmail_uuid)
             cookie_controller.remove('gmail_uuid')
             time.sleep(0.1)
             st.rerun()
 
 with col2:
-    if "access_token" not in st.session_state:
+    if not jira_uuid or not jira_access_token_exists(jira_uuid):
         if jira_clicked:
             authorization_code = st.query_params['code']
             st.query_params.clear()
-            access_token = get_access_token(authorization_code)
-
-            st.session_state['access_token'] = access_token
-            auth = True
             st.rerun()
         else:
-            authorization_url, state = get_authorization_url()
-            st.session_state['auth_state'] = state
+            authorization_url, state = get_jira_authorization_url()
 
             # Display the button with custom styling
             button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button" id="jira_button">Authenticate Jira :key:</button></a>'
             st.markdown(button_html, unsafe_allow_html=True)
+            cookie_controller.set('jira_state', state)
+            time.sleep(0.1)
     else:
         jira_inauth = st.button("Logout from Jira")
         if jira_inauth:
-            del st.session_state["access_token"]
-            del st.session_state["auth_state"]
-            del st.session_state["JiraClient"]
+            logout_jira(jira_uuid)
+            cookie_controller.remove('jira_uuid')
+            time.sleep(0.1)
             st.rerun()
 
 if gmail_uuid and gmail_credentials_exists(gmail_uuid):
     st.success("Successfully authenticated with Google")
 
-if "access_token" in st.session_state:
+if jira_uuid and jira_access_token_exists(jira_uuid):
     st.success("Successfully authenticated with Jira")

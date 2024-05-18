@@ -2,6 +2,7 @@ import os
 import uuid
 import json
 import redis
+import requests
 
 from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
@@ -34,14 +35,11 @@ redis_client = redis.Redis(host='redis-app', port=6379, db=0)
 def get_gmail_auth_url():
     flow = Flow.from_client_config(credentials_json, SCOPES)
     flow.redirect_uri = HOST
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true'
-    )
+    authorization_url, state = flow.authorization_url()
     return authorization_url, state
 
 
-def get_gmail_access_token(state, response_params):
+def generate_gmail_access_token(state, response_params):
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Remove this later when we get https
 
     # Add state back to client config
@@ -54,13 +52,36 @@ def get_gmail_access_token(state, response_params):
     except Exception as e:
         print(e)
         return None
+    # headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    # data = {
+    #     'code': response_params['code'],
+    #     'client_id': os.getenv('GMAIL_CLIENT_ID'),
+    #     'client_secret': os.getenv('GMAIL_CLIENT_SECRET'),
+    #     'redirect_uri': HOST,
+    #     'grant_type': 'authorization_code'
+    # }
+    # result = requests.post('https://oauth2.googleapis.com/token', data=data, headers=headers)
+    # print(response_params['code'])
+    # print(result.json())
+    # print(result.json().get('access_token'))
+    #
+    # data = {
+    #     'client_id': os.getenv('GMAIL_CLIENT_ID'),
+    #     'client_secret': os.getenv('GMAIL_CLIENT_SECRET'),
+    #     'refresh_token': '1//05JRapfFXlhd1CgYIARAAGAUSNwF-L9Irh4QmiA9y0QasxmXsVm5tRFCiVm34sQwlMDxy91HdXjLDxWEdBVYznp42VkkiIgT7aU8',
+    #     'grant_type': 'refresh_token'
+    # }
+    # result = requests.post('https://oauth2.googleapis.com/token', data=data, headers=headers)
+    # print(response_params['code'])
+    # print(result.json())
+    # print(result.json().get('access_token'))
 
     id = str(uuid.uuid4())
     redis_client.set(id, flow.credentials.to_json(), ex=3600)
     return id
 
 
-def logout(id):
+def logout_gmail(id):
     redis_client.delete(id)
 
 
@@ -71,5 +92,6 @@ def get_gmail_credentials(id):
 
 
 def gmail_credentials_exists(id):
-    data = redis_client.get(id)
-    return json.loads(data) is not None
+    # data = redis_client.get(id)
+    # return data is not None
+    return False
