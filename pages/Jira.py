@@ -136,8 +136,8 @@ else:
 
     if st.button("get proje"):
         try:
-            issues = client.projects()
-            st.success(f"issues obtained: {type(issues)}")
+            projs = client.projects()
+            st.success(f"issues obtained: {projs}")
         except Exception as e:
             st.error(f"Failed to get projects: {e}")
 
