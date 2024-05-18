@@ -9,6 +9,7 @@ from langchain_core.prompts import (
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableLambda
 from ast import literal_eval
+from backend.v1.database import RdsManager
 
 _SYS_PROMPT = """
 System: You are working for the software app Nirvana, which helps users (often managers of teams)
@@ -433,20 +434,25 @@ def generate_sql(request: str, schema: str) -> dict:
 
     return {"sql_query": output}
 
-def route_agent(self, message: str, agents: list[Agent]) -> dict:
+def route_agent(message: str, agents: list[Agent], schema: str | None = None) -> dict:
     options = ["SELF"] + [agent.name for agent in agents]
+
+    print(f"Agents {agents}")
 
     chain = (
         PromptTemplate.from_template(
             _SYS_PROMPT + f"""
             You are a supervisor, tasked with managing user requests while having access to the
-            following members on your team: {agents}.
+            following members on your team: 
+
+            {agents}
 
             Given the following user request, classify it as being a request you could either fulfill yourself, or that
             one of your team members could better handle.
 
             Select one of: {options}
             """
+            + (f"To help with your decision, here is what our database schema currently looks like: {schema}" if schema else "")
             + """
             Request: {message}
             """
@@ -455,38 +461,11 @@ def route_agent(self, message: str, agents: list[Agent]) -> dict:
         | StrOutputParser()
     )
 
-    return chain.invoke({"message": message})
+    result = chain.invoke({"message": message})
 
-# def function_call(request: str, functions: list[str]) -> dict:
-#     """
-#     Given an email and a list of functions, return the correct function call, if any.
-#     """
+    print("Route agent result:", result)
 
-#     prefix: str = f"""
-#     You are an assistant working on the JIRA integration module of the Nirvana app.
-#     A user has given us an email, and we a set of functions available to us. 
-#     We have to make a decision about which functions (could be 0, one, or multiple) to use. 
-#     This call will be formatted as a Python function call that will be executed.
-
-#     We have access to the following functions:
-#     {functions}
-
-#     Given the below email and a list of functions, return the Python function call that corresponds to the action to be taken.
-#     If the function has required parameters, include them in the function call. If the function has
-#     optional parameters, you can include them if you think they are relevant to the action to be taken. Return
-#     the function call, or calls, as a list of Python strings where each string is a Python function call.
-#     """
-
-#     example_prompt = PromptTemplate(
-#         input_variables=["email", "functions", "function_call"],
-#         template="""
-#         Email: {email}
-#         Functions: {functions}
-#         Function Call: {function_call}
-#         """
-#     )
-
-#     ...
+    return result
 
 class Function(BaseModel):
     string: str = Field(..., title="The function and its parameters as a Python function call string")
@@ -496,21 +475,36 @@ class Function(BaseModel):
         return self.string, self.description
 
 class ChatArctic:
-    def __init__(self):
+    """
+    Wrapper for Arctic Model that handles the /chat endpoint.
+
+    Given the user's email (to access the db), answers any questions about the data.
+
+    The model should be able to:
+    - Visualize data
+    - Answer specific questions about the data
+    """
+    def __init__(self, rds: RdsManager):
         self.model = Arctic()
 
-        plotter_agent = Agent(name="Plotter", description="Agent that can retrieve and plot data from the database - use if the user asks for data visualization.")
-        sql_agent = Agent(name="SQL Query", description="Agent that can generate SQL queries based on user requests and the database schema - use if the user is asking for something specific about the data.")
+        plotter_agent = Agent(name="Plotter", 
+                          description="Agent that can retrieve and plot data from the database - use if the user asks for data visualization.")
+        sql_agent     = Agent(name="SQL Query", 
+                          description="Agent that can generate SQL queries based on user requests and the database schema - use if the user is asking a question that we need data to answer.")
 
         self.agents = [
             plotter_agent,
             sql_agent
         ]
 
+        self.rds = rds
+
     def invoke(self, message: str) -> str:
 
-        def route(x: dict) -> dict:
-            if x["route"] == "SELF":
+        def route(inp: dict) -> dict:
+            agent = inp["request"]
+            print("-route Agent:", agent)
+            if agent == "SELF":
                 return (
                     PromptTemplate.from_template(
                         _SYS_PROMPT + """
@@ -521,13 +515,50 @@ class ChatArctic:
                     | StrOutputParser()
                 )
             else:
-                agent = x["route"]
                 print("Agent selected:", agent)
 
                 if agent == "Plotter":
                     ...
                 elif agent == "SQL Query":
-                    ...
+
+                    def execute_sql(query: str) -> dict:
+                            print("execute_sql - Executing query:", query)
+                            output = self.rds.execute_sql(query)
+                            print("execute_sql - Output:", output)
+                            return output
+
+                    context = self.rds.get_metadata()
+
+                    print("SQL Query context:", context)
+
+                    return (
+                        {"request": lambda x: x["request"], "schema": context}
+                        | RunnableLambda(lambda x: {
+                            "request": x["request"], 
+                            "query": generate_sql(x["request"], x["schema"])
+                            }
+                        )
+                        | RunnableLambda(lambda x: {
+                            "query": lambda x: x, "output": execute_sql(x["sql_query"])
+                            }
+                        )
+                        | {"output": lambda x: x["output"], "query": lambda x: x["query"]}
+                        | PromptTemplate.from_template(
+                            _SYS_PROMPT = """
+                            In response to the following user request, we executed the following SQL query:
+
+                            {request}
+
+                            SQL Query: {query}
+
+                            Result: {output}
+
+                            Answer the user's request with the data retrieved from the database.
+                            """
+                        )
+                        | Arctic()
+                        | StrOutputParser()
+                    )
                 else:
                     # TODO: in the future automatically pick closest levenshtein distance agent
                     raise ValueError(f"Invalid agent {agent} selected.")
@@ -536,14 +567,14 @@ class ChatArctic:
             # first step of chain:
             # given what the current database looks like, make a decision about whether we need to use one of the
             # agents or if the request is something else like a trivial or question or maybe something out of scope
-            RunnableLambda(lambda x: {"route" : route_agent(x, self.agents)})
+            RunnableLambda(lambda x: {"request" : route_agent(x, self.agents, dict_to_str(self.rds.get_metadata()))})
             # second step of chain:
             # given the decision, route the message to the appropriate agent
             | RunnableLambda(route)
         )
 
         # return self.model.invoke(message)
-        return chain.invoke(message.content)
+        return chain.invoke(message)
 
 if __name__ == "__main__":
 
