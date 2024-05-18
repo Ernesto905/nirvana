@@ -252,26 +252,43 @@ class JiraClient:
 
     def get_allowed_params(self): 
         """
-        This function returns one big payload where, for each project, 
-        it lists out 
-            issues : []
-            members : []
-            labels : []
-            priorities : []
-            statuses : []
-
-        return type: Python Dictionary
+        Extract and structure important issue data for projects.
+        
+        Returns:
+            dict: Contains structured data on projects and associated issues.
         """
-
         projects = [project['name'] for project in self.projects() if 'name' in project]
-        # issues = 
-        
-    
-        
+        all_issues = self.get_all_issues().get('issues', [])
 
+        extracted_issues = []
+        for issue in all_issues:
+            fields = issue.get('fields', {})
+            descr = fields.get('description', {})
+            description_text = ""
+            
+            # Safely navigate through the potentially nested content of the description
+            content_blocks = descr.get('content', []) if isinstance(descr, dict) else []
+            for block in content_blocks:
+                paragraphs = block.get('content', [])
+                for paragraph in paragraphs:
+                    if paragraph['type'] == 'text':  # Ensuring that the type is indeed 'text' before attempting to access 'text'
+                        description_text = paragraph.get('text', '')
+                        if description_text:  # Exit as soon as we find some text content
+                            break
+                if description_text:
+                    break
 
+            assignee_info = fields.get('assignee', {})
+            extracted_issues.append({
+                'name': fields.get('summary'),
+                'description': description_text,
+                'project_name': fields.get('project', {}).get('name'),
+                'assignee': assignee_info.get('displayName', 'Unassigned') if isinstance(assignee_info, dict) else 'Unassigned',
+                'status': fields.get('status', {}).get('name')
+            })
 
-
-
-
-
+        return json.dumps({
+            'projects': projects,
+            'issues': extracted_issues,
+            # Include processing for members, labels, priorities, statuses as necessary
+        })

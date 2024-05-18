@@ -148,3 +148,10 @@ else:
             st.success(f"issues obtained: {type(issues)}")
         except Exception as e:
             st.error(f"Failed to get projects: {e}")
+
+    if st.button("Get params"):
+        try:
+            all = client.get_allowed_params()
+            st.success(f"params: {all}")
+        except Exception as e:
+            st.error(f"Failed: {e}")
