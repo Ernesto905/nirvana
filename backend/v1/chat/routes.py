@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.chat.service import process_chat
 from backend.v1.auth import google_auth_required
+from backend.v1.gmail import address_from_creds
 
 bp = Blueprint('chat', __name__, url_prefix='/chat')
 
@@ -16,10 +17,8 @@ def chat():
 
     user_message = data.get('message')
 
-    # token = data.get('google-auth-token') # UNCOMMENT AFTER TESTING
-    # get email from token
-    user_email = ... # TODO
-    user_email = "ernesto90543@gmail.com"
+    token = data.get('google-auth-token')
+    user_email = address_from_creds(token)
 
     try:
         user_message = user_message.strip()

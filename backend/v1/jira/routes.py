@@ -13,6 +13,10 @@ def actions():
     - jira-cloud-id: str with the jira cloud id
     - jira-auth-token: dict with the jira auth token
     """
+    data = request.get_json()
+    email = data.get('email')
+    jira_cloud_id = data.get('jira-cloud-id')
+    jira_auth_token = data.get('jira-auth-token')
     ...
 
 @bp.route('/execute', methods=['POST'])
@@ -20,9 +24,12 @@ def actions():
 def execute():
     """
     Expected Payload:
-    - email: str with the email in question
     - action: dict with the action to be executed
     - jira-cloud-id: str with the jira cloud id
     - jira-auth-token: dict with the jira auth token
     """
+    data = request.get_json()
+    action = data.get('action')
+    jira_cloud_id = data.get('jira-cloud-id')
+    jira_auth_token = data.get('jira-auth-token')
     ...
