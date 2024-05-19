@@ -58,24 +58,45 @@ Chains:
 """
 
 # JIRA Features
-def get_jira_actions(email: str, context: dict) -> dict:
+def generate_actions(email: str, context: dict, funcs: list) -> dict:
+    # assert isinstance(context, dict)
     """
     Given an email, a set of options of what our backend can do with JIRA,
+    some context related to the user's current JIRA setup (projects, current issues, tasks, etc),
+    and a list of functions we have access to in order to interact with JIRA,
+    we need to make a decision about what to do with the JIRA API, if anything.
+    """
+
+    prefix = _SYS_PROMPT + """
+    You are an assistant working on the JIRA integration module of the Nirvana app.
+    Given an email a user has received, a set of options of what our backend can do with JIRA,
     and some context related to the user's current JIRA setup (projects, current issues, tasks, etc),
     we need to make a decision about what to do with the JIRA API, if anything.
 
-    Assume context has the keys:
-    - "projects": List of JIRA project names
-    - "issues": List of JIRA issue keys
-    - "tasks": List of JIRA task keys
-    - "users": List of JIRA user keys
+    Return a list of possible actions that we can take with JIRA based on the email content and context.
+
+    This list should be formatted as a list of Python strings, where each string is a 
+    Python function call calling one of the functions provided in the list of functions.
+
+    We are only concerned with the following actions:
+    - Creating new issues (epics, tasks, or sub-tasks)
+        - Setting assignees, due dates, and labels
+    - Updating existing issues in the following ways:
+        - Changing issue status (TO DO, IN PROGRESS, DONE)
+        - Changing issue assignee
+        - Changing due dates
+        - Change labels
+
+    If there are no actions to take, return "NONE". Otherwise, return a Python formatted list of the actions, such that the actions
+    are dictionaries.
     """
 
     example_prompt = PromptTemplate(
-        input_variables=["email", "context", "actions"],
+        input_variables=["email", "context", "funcs", "actions"],
         template="""
         Email: {email}
         Context: {context}
+        Functions: {funcs}
         Actions: {actions}
         """
     )
@@ -94,86 +115,82 @@ def get_jira_actions(email: str, context: dict) -> dict:
         Jane Doe
         Client Project Manager
         ClientDomain.com
-            """,
-        "context": """
-        Project: Project Falcon
-        Status: In Progress
-        Key Issues:
-        Falcon-101: Draft initial project deliverables (Due: May 25, 2024)
-        Falcon-102: Review integration specifications (Due: June 10, 2024, Status: Pending Review)
-        Falcon-103: Finalize all deliverables (Original Due Date: July 20, 2024)
-        Epics:
-        Epic-001: Infrastructure Setup
-        Epic-002: Integration and Testing Phases
-        """,
-        "actions": """
-        ["Update the due date of the task Falcon-103 to June 30, 2024, to reflect the new deadline communicated by the client.",
-        "Create a new issue to address the discrepancies in the integration specifications mentioned by the client. Assign it to the relevant team member and prioritize it to ensure it's addressed before the next deliverable."]
-        """
-    }, 
-    {
-        "email": """
-        Subject: 1:1 Meeting Agenda for May 12, 2024
-        From: John Smith
-        Date: May 10, 2024
-        To: Team Members
-        Hi Team,
-        I hope you're all doing well. I'd like to remind you about our upcoming 1:1 meetings scheduled for May 12, 2024. Please review the agenda items below and come prepared to discuss your progress, challenges, and any support you may need.
-        Agenda:
-        1. Project Updates
-        2. Roadblocks and Challenges
-        3. Support Needed
-        4. Any Other Business
-        Please confirm your availability for the meeting and let me know if you have any specific topics you'd like to discuss.
-        Looking forward to our discussions.
-        Best,
-        John
         """,
         "context": """
-        Project: Arctic Development
-        Status: Ongoing
-        Key Issues:
-        Arctic-221: Implement User Authentication (Due: May 15, 2024)
-        Arctic-232: Design Database Schema (Due: May 20, 2024) 
-        Project: Mobile App Launch
-        Status: Pending
-        Key Issues:
-        Mobile-101: Finalize UI Design (Due: May 30, 2024)
-        Mobile-102: Implement Push Notifications (Due: June 5, 2024)
+        Project Falcon:
+            issues:
+            - id: 'Falcon-101'
+                key: Falcon-101
+                summary: Draft initial project deliverables
+                status: In Progress
+                duedate: '2024-05-25'
+                assignee:
+                name: Unassigned
+                email: No email available
+            - id: 'Falcon-102'
+                key: Falcon-102
+                summary: Review integration specifications
+                status: Pending Review
+                duedate: '2024-06-10'
+                assignee:
+                name: Unassigned
+                email: No email available
+            - id: 'Falcon-103'
+                key: Falcon-103
+                summary: Finalize all deliverables
+                status: In Progress
+                duedate: '2024-07-20'
+                assignee:
+                name: Unassigned
+                email: No email available
+            members: []
+            labels: []
+            priorities: []
+            epics:
+            - id: 'Epic-001'
+                key: Epic-001
+                summary: Infrastructure Setup
+                status: In Progress
+                duedate: 
+                assignee:
+                name: Unassigned
+                email: No email available
+            - id: 'Epic-002'
+                key: Epic-002
+                summary: Integration and Testing Phases
+                status: In Progress
+                duedate: 
+                assignee:
+                name: Unassigned
+                email: No email available
+        """,
+        "funcs": """
+        ["name: create_issue
+        required params: project, summary, priority
+        optional params: description, assignee, duedate",
+        "name: update_issue
+        required params: issue
+        optional params: due_date, assignee, status, priority"]
         """,
         "actions": """
-            NONE
-        """
-    }
-    ]
+        ["update_issue(issue="Falcon-103", due_date="2024-06-30")",
+        "create_issue(project="Project Falcon", summary="Address integration specification discrepancies", 
+        description="Address the discrepencies noted in the last set of deliverables concerning the integration specifications. Pointed out by client Jane Doe on May 10.",
+        priority="High")"]
+        """,
+    }]
 
     prompt = FewShotPromptTemplate(
         examples=examples,
         example_prompt=example_prompt,
-        input_variables=["email", "context"],
-        suffix="Email: {email}\nContext: {context}\nActions:",
-        prefix=_SYS_PROMPT + """
-        Given the below email that the user just received, and some context in the user's JIRA,
-        what are some helpful actions that we can take with JIRA based on the email content? Identify
-        possible actions based on action items, deadlines, assignments, and other relevant information in the email,
-        and return a Python list of the different actions we should take. Note that creating
-        entire projects is out of scope for this task. We are only concerned with the following actions:
-        - Creating new issues (epics, tasks, or sub-tasks) 
-            - Setting assignees, due dates, and labels
-        - Updating existing issues in the following ways:
-            - Changing issue status (TO DO, IN PROGRESS, DONE)
-            - Changing issue assignee
-            - Changing due dates
-            - Change labels
-
-        If there are no actions to take, return "NONE". Otherwise, return a Python formatted list of the actions, such that the actions
-        are dictionaries.
-        The actions should only be actions that are specific and actionable in JIRA.
-        """
+        input_variables=["email", "context", "funcs"],
+        suffix="Email: {email}\nContext: {context}\nFunctions: {funcs}\nActions:",
+        prefix=prefix
     )
 
-    # convert context to str because replicate api does not take kindly to curly braces!!!!!!!
+    print("Context is", context)
     context = dict_to_str(context)
+    print("Context AFTER is", context)
 
     chain = (
         prompt
@@ -181,108 +198,12 @@ def get_jira_actions(email: str, context: dict) -> dict:
         | StrOutputParser()
     )
 
-    result = chain.invoke({"email": email, "context": context})
+    output = chain.invoke({"email": email, "context": context, "funcs": funcs})
 
-    if result.strip().upper() == "NONE":
-        output = []
+    if "NONE" in output:
+        return []
     else:
-        output = literal_eval(result)
-
-    return {"actions": output}
-
-def get_jira_api_call(email: str, decision: str, context: dict):
-    """
-    Given an email, a decision about what to do with JIRA, and context related to the user's JIRA setup,
-    we need to make a JIRA API call to create or update a JIRA issue or task.
-
-    Assume context has the keys:
-    - "projects": List of JIRA project names
-    - "issues": List of JIRA issue keys
-    - "tasks": List of JIRA task keys
-    - "users": List of JIRA user keys
-    """
-
-    prefix: str = """
-    You are an assistant working on the JIRA integration module of the Nirvana app.
-    A user has given us an email, and we have already made a decision about a specific action to take
-    in JIRA based on the email content. Now, we need to make the actual API call to JIRA to perform 
-    this action. This call will be formatted as a Python function call that will be executed to interact with the JIRA API.
-
-    We have access to the following functions to interact with the JIRA API:
-    - create_issue(project, summary, description, assignee, priority)
-    - update_issue(issue_key, summary, description, assignee, priority)
-    - create_task(issue_key, summary, description, assignee, priority)
-    - update_task(task_key, summary, description, assignee, priority)
-
-    Given the below email, the specific action to take in JIRA, and the context of the user's JIRA setup,
-    return the Python function call that corresponds to the action to be taken in JIRA. If the action is to create a new issue or task,
-    include the necessary parameters (project, summary, description, assignee, priority). If the action is to update an existing issue or task,
-    include the issue_key or task_key along with the updated parameters. The other parameters can be left as None if they are not relevant to the action.
-    """
-
-    example_prompt = PromptTemplate(
-        input_variables=["email", "decision", "context", "api_call"],
-        template="""
-        Email: {email}
-        Context: {context}
-        Decision: {decision}
-        API Call: {api_call}
-        """
-    )
-
-    examples = [{
-        "email": """
-        Subject: Urgent: Client Feedback on Project Falcon Deadline Adjustments
-        From: Jane Doe janedoe@clientdomain.com
-        Date: May 10, 2024
-        To: John Smith johnsmith@yourcompany.com
-        Dear John,
-        I hope this message finds you well. Following our recent discussions and the revisions to the project timelines that were agreed upon, I wanted to confirm the new delivery dates for Project Falcon. As per our last meeting, the final deliverable is now expected by June 30, 2024, instead of the previously set date of July 20, 2024.
-        Please acknowledge this email and update the project schedule accordingly. Additionally, we have noted some discrepancies in the last set of deliverables concerning the integration specifications. Could these be reviewed and addressed at the earliest?
-        Looking forward to your prompt action on these matters.
-        Best regards,
-        Jane Doe
-        Client Project Manager
-        ClientDomain.com
-        """,
-        "context": """
-        Project: Project Falcon
-        Status: In Progress
-        Key Issues:
-        Falcon-101: Draft initial project deliverables (Due: May 25, 2024)
-        Falcon-102: Review integration specifications (Due: June 10, 2024, Status: Pending Review)
-        Falcon-103: Finalize all deliverables (Original Due Date: July 20, 2024)
-        Epics:
-        Epic-001: Infrastructure Setup
-        Epic-002: Integration and Testing Phases
-        """,
-        "decision": """
-        Update the due date of the task Falcon-103 to June 30, 2024, to reflect the new deadline communicated by the client.
-        """,
-        "api_call": """
-        update_task('Falcon-103', None, None, None, None, '2024-06-30')
-        """}
-    ]
-
-    prompt = FewShotPromptTemplate(
-        examples=examples,
-        example_prompt=example_prompt,
-        input_variables=["email", "decision", "context"],
-        suffix="Email: {email}\nDecision: {decision}\nContext: {context}\nAPI Call:",
-        prefix=prefix
-    )
-
-    context = dict_to_str(context)
-
-    chain = (
-        prompt 
-        | Arctic()
-        | StrOutputParser()
-    )
-
-    output = chain.invoke({"email": email, "decision": decision, "context": context})
-
-    return {"api_call": output}
+        return output
 
 # Unified Database Features
 def extract_features(email: str, schema: str) -> dict:

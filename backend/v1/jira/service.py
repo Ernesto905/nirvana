@@ -1,12 +1,34 @@
 from backend.v1.llm import (
-    get_jira_actions,
-    get_jira_api_call
+    dict_to_str
 )
-
+from backend.v1.llm import generate_actions as ga
+import json
 from jira import JiraClient
 
-def generate_actions(email, client: JiraClient):
-    ...
+def generate_actions(email: str, client: JiraClient):
+    context = client.get_allowed_params()
+    print(type(context))
+    context = json.loads(context)
+    funcs = """
+        ["name: create_issue
+        required params: project, summary, priority
+        optional params: description, assignee, duedate",
+        "name: update_issue
+        required params: issue
+        optional params: due_date, assignee, status, priority"]
+        """
 
-def execute_action(email, action, client: JiraClient):
-    ...
+    actions = ga(email, context, funcs)
+
+    return actions
+
+def execute_action(action, client: JiraClient):
+    context = client.get_allowed_params()
+    context = dict_to_str(context)
+
+    try:
+        eval("client." + action)
+    except Exception as e:
+        raise Exception(f"Error executing action during eval step: {e}")
+
+    return
