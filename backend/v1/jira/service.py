@@ -1,14 +1,12 @@
-from backend.v1.llm import (
-    dict_to_str
-)
+from backend.v1.llm import dict_to_str
 from backend.v1.llm import generate_actions as ga
 import json
 from jira import JiraClient
 
 def generate_actions(email: str, client: JiraClient):
     context = client.get_allowed_params()
-    print(type(context))
     context = json.loads(context)
+
     funcs = """
         ["name: create_issue
         required params: project, summary, priority
@@ -23,8 +21,6 @@ def generate_actions(email: str, client: JiraClient):
     return actions
 
 def execute_action(action, client: JiraClient):
-    context = client.get_allowed_params()
-    context = dict_to_str(context)
 
     try:
         eval("client." + action)
