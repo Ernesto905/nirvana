@@ -298,4 +298,4 @@ class JiraClient:
 
             output[project_name] = project_data
 
-        return output
+        return json.dumps(output)

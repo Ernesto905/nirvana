@@ -84,6 +84,7 @@ with col2:
             st.rerun()
         else:
             authorization_url, state = get_authorization_url()
+            print("Auth url is", authorization_url)
             st.session_state['auth_state'] = state
 
             # Display the button with custom styling
