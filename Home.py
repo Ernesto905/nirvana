@@ -10,6 +10,8 @@ st.set_page_config(page_title="Nirvana", page_icon=":peace_symbol:")
 
 cookie_controller = CookieController()
 
+SLEEP_TIME = 0.2
+
 # Custom CSS styles
 st.markdown("""
     <style>
@@ -76,7 +78,6 @@ if scope and 'google' in scope:
 code = st.query_params.get('code')
 jira_clicked = False
 if code and not scope:
-    print("here3", file=sys.stderr, flush=True)
     jira_clicked = True
 
 with col1:
@@ -91,7 +92,7 @@ with col1:
             id = generate_gmail_access_token(response_params['state'], response_params)
             if id:
                 cookie_controller.set('gmail_uuid', id)
-                time.sleep(0.1)
+                time.sleep(SLEEP_TIME)
             st.query_params.clear()
             st.rerun()
         else:
@@ -100,27 +101,24 @@ with col1:
             st.markdown(button_html, unsafe_allow_html=True)
             if gmail_state:
                 cookie_controller.set('gmail_state', gmail_state)
-                time.sleep(0.1)
+                time.sleep(SLEEP_TIME)
     else:
         logout_button = st.button("Logout from Google")
         if logout_button:
             logout_gmail(gmail_uuid)
             cookie_controller.remove('gmail_uuid')
-            time.sleep(0.1)
+            time.sleep(SLEEP_TIME)
             st.rerun()
 
 with col2:
     if not jira_uuid or not jira_access_token_exists(jira_uuid):
-        print("here4", file=sys.stderr, flush=True)
         if jira_clicked:
-            print("here5", file=sys.stderr, flush=True)
             authorization_code = st.query_params['code']
             st.query_params.clear()
             id = generate_jira_access_token(authorization_code)
-            print(f"here6 [{id}]", file=sys.stderr, flush=True)
             if id:
                 cookie_controller.set('jira_uuid', id)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
             # st.query_params.clear()
             # st.rerun()
         else:
@@ -130,13 +128,13 @@ with col2:
             button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button" id="jira_button">Authenticate Jira :key:</button></a>'
             st.markdown(button_html, unsafe_allow_html=True)
             cookie_controller.set('jira_state', state)
-            time.sleep(0.1)
+            time.sleep(SLEEP_TIME)
     else:
         jira_inauth = st.button("Logout from Jira")
         if jira_inauth:
             logout_jira(jira_uuid)
             cookie_controller.remove('jira_uuid')
-            time.sleep(0.1)
+            time.sleep(SLEEP_TIME)
             st.rerun()
 
 if gmail_uuid and gmail_credentials_exists(gmail_uuid):

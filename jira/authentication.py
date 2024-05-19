@@ -44,10 +44,9 @@ def generate_jira_access_token(code):
 
 def get_jira_access_token_and_cloudid(id):
     access_token = redis_client.get(id)
-    import sys
-    print(access_token, file=sys.stderr, flush=True)
     if not access_token:
         return None, None
+    access_token = access_token.decode('utf-8')
     resource_url = "https://api.atlassian.com/oauth/token/accessible-resources"
     headers = {
         'Accept': 'application/json',
@@ -55,7 +54,6 @@ def get_jira_access_token_and_cloudid(id):
     }
 
     response = requests.get(resource_url, headers=headers)
-    print(response.text, file=sys.stderr, flush=True)
     response.raise_for_status()
 
     # Bit of a misnomer. response_json type is actually a list
