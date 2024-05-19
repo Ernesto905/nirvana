@@ -9,22 +9,25 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
     try:
         service = build("gmail", "v1", credentials=session.creds)
 
-        page_id = get_page_id(service, session, maxResults, page_number, query)
-
         # Get Email IDs
-        results = (
-            service
-            .users()
-            .messages()
-            .list(
+        messages = service.users().messages()
+        request = (
+            messages.list(
                 userId="me",
                 maxResults=maxResults,
                 q=query,
-                pageToken=page_id,
                 includeSpamTrash=False
-            ).execute()
+            )
         )
 
+        count = 1
+        results = None
+        while request is not None and count < page_number:
+            results = request.execute()
+            request = messages.list_next(request, results)
+            count += 1
+
+        results = request.execute()
         message_ids = results.get("messages", [])
 
         if not message_ids:
@@ -66,47 +69,6 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return []
-
-
-def get_page_id(service, session, maxResults, page_number, query):
-    if page_number == 1:
-        return ""
-
-    email_pages = session.get("email_pages", {})
-    page_id = email_pages.get((maxResults, page_number), "")
-    if len(page_id):
-        return page_id
-
-    try:
-        counter = 1
-        prev_page_id = ""
-        while counter != page_number:
-            prev_page_id = page_id
-            page_id = email_pages.get((maxResults, counter), None)
-            if page_id:
-                counter += 1
-                continue
-
-            results = (
-                service
-                .users()
-                .messages()
-                .list(
-                    userId="me",
-                    maxResults=maxResults,
-                    q=query,
-                    pageToken=prev_page_id,
-                    includeSpamTrash=False
-                ).execute()
-            )
-
-            page_id = results.get("nextPageToken")
-            email_pages[(maxResults, counter)] = page_id
-            counter += 1
-        return page_id
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return ""
 
 
 def get_body_text(payload: dict) -> str:
