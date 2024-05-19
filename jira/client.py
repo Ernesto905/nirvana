@@ -137,8 +137,8 @@ class JiraClient:
                 "name": priority
             }
 
-        # if due_date:
-        #     data["fields"]["duedate"] = due_date
+        if due_date:
+            data["fields"]["duedate"] = due_date
 
         if issue_type:
             data["fields"]["issuetype"] = {
@@ -172,9 +172,9 @@ class JiraClient:
 
 
 
-    def update_issue(self, issue, due_date, assignee, status, priority):
+    def update_issue(self, issue, due_date=None, assignee=None, status=None, priority=None):
         """
-        Updates a current jira issue with a due date, status, and priority.  
+        Updates a current jira issue with a due date, status, and priority.
         issue parameter can be either an ID or the Name of the issue (also known as the "Key")
         """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}/{issue}"
@@ -185,24 +185,31 @@ class JiraClient:
             "Content-Type": "application/json"
         }
 
-        data = json.dumps({
-            "fields": {
-                "assignee": {
-                    "id": assignee
-                },
-                "priority": {
-                  "name": priority 
-                },
-                "duedate": due_date
-            }
-        })
+        data = {
+            "fields": {}
+        }
 
-        response = requests.put(url, headers=headers, data=data)
+        if assignee:
+            data["fields"]["assignee"] = {
+                "id": assignee
+            }
+
+        if priority:
+            data["fields"]["priority"] = {
+                "name": priority
+            }
+
+        if due_date:
+            data["fields"]["duedate"] = due_date
+
+        response = requests.put(url, headers=headers, json=data)
+        print(response.text)
         if response.status_code != 204:
             response.raise_for_status()
 
         # Transition an issue to a new status
-        self.transfer_issue(issue, status)
+        if status:
+            self.transfer_issue(issue, status)
 
         return issue
 

@@ -194,7 +194,7 @@ def generate_actions(email: str, context: dict, funcs: list) -> dict:
 
     chain = (
         prompt
-        | Arctic()
+        | GPT(model='gpt-4o', api_key=os.getenv("OPENAI_API_KEY"))
         | StrOutputParser()
     )
 
