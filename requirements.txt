@@ -17,3 +17,7 @@ jira
 flask
 redis
 async_timeout
+matplotlib
+seaborn
+pandas 
+numpy 

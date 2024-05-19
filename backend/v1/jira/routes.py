@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.jira.service import generate_actions, execute_action
 from backend.v1.auth import jira_auth_required
-from backend.v1.jira import JiraClient
+
+from jira import JiraClient
 
 bp = Blueprint('jira', __name__, url_prefix='/jira')
 
