@@ -27,7 +27,7 @@ class JiraClient:
         data = response.json()
         return data
 
-    
+
     def get_all_issues(self):
         """
         Returns all issues in an account as a python dict 
@@ -39,7 +39,7 @@ class JiraClient:
 
         data = response.json()
         return data
-    
+
     def search_with_jql(self, jql):
         """
         Perform search with JQL-- Jira's inbuild query language. 
@@ -233,10 +233,10 @@ class JiraClient:
             if transition['name'] == status_name:
                 return transition['id']
         return None
-    
 
 
-    
+
+
     """
     The following functions return the allowed parameters of a 
     jira ticket. For example, what priorities, statuses, users, etc.
@@ -263,9 +263,9 @@ class JiraClient:
             project_name = project['name']
             project_data = {
                 "issues": [],
-                "members": set(),     
-                "labels": set(),      
-                "priorities": set()   
+                "members": set(),
+                "labels": set(),
+                "priorities": set()
             }
 
             # Extract issues for each project using JQL or an appropriate method

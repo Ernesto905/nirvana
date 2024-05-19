@@ -1,6 +1,6 @@
 import streamlit as st
 from gmail.messages import get_messages
-
+from jira.authentication import *
 # Set page title and favicon
 st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:", layout="wide")
 
@@ -70,17 +70,38 @@ if logged_in:
                 st.write(emails[i].get("body", ""))
 
                 col1, col2 = st.columns([5, 0.3])
-                with col1:
-                    st.write("---")
-                    option = st.radio("Select an option", ("Option 1", "Option 2", "Option 3", "Option 4"), key=f"option_{i}")
-                    query = st.text_input("Enter a query", key=f"query_{i}")
-                    if st.button("Process", key=f"process_button_{i}"):
-                        # Add your LLM processing logic here based on the selected option and query
-                        st.success("LLM processing completed!")
-                with col2:
-                    pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""
-                    spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
-                    st.write(f"{pdf_icon} {spreadsheet_icon}")
+
+
+                if 'access_token' not in st.session_state:
+                    st.info("Please authenticate with Jira to enable LLM functionality")
+                else: 
+
+                    access_token = st.session_state['access_token']
+                    cloud_id = get_cloudid(access_token)
+
+                    with col1:
+
+                        if st.button("Send req"):
+                            # Make a POST request to the Flask API to get the actions
+                            payload = {
+                                "email": emails[i].get("body", ""),
+                                "jira-cloud-id": cloud_id,
+                                "jira-auth-token": access_token
+                            }
+                            response = requests.post("http://localhost:5000/v1/jira/actions", json=payload)
+                            st.info(f"response {response}")
+                            st.info(f"response was {response.text} with status code {response.status_code}")
+                    
+                        st.write("---")
+                        option = st.radio("Select an option", ("Option 1", "Option 2", "Option 3", "Option 4"), key=f"option_{i}")
+                        query = st.text_input("Enter a query", key=f"query_{i}")
+                        if st.button("Process", key=f"process_button_{i}"):
+                            # Add your LLM processing logic here based on the selected option and query
+                            st.success("LLM processing completed!")
+                    with col2:
+                        pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""
+                        spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
+                        st.write(f"{pdf_icon} {spreadsheet_icon}")
 
 else:
     st.info("Please log in to access your Gmail inbox.")
