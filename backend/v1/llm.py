@@ -59,7 +59,7 @@ Chains:
 
 # JIRA Features
 def generate_actions(email: str, context: dict, funcs: list) -> dict:
-    # assert isinstance(context, dict)
+    assert isinstance(context, dict), f"Context is a {type(context)}."
     """
     Given an email, a set of options of what our backend can do with JIRA,
     some context related to the user's current JIRA setup (projects, current issues, tasks, etc),
@@ -188,9 +188,7 @@ def generate_actions(email: str, context: dict, funcs: list) -> dict:
         prefix=prefix
     )
 
-    print("Context is", context)
     context = dict_to_str(context)
-    print("Context AFTER is", context)
 
     chain = (
         prompt
