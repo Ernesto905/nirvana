@@ -13,11 +13,13 @@ def chat():
     - google-auth-token: dict with user's google auth token
     """
     data = request.get_json()
-    # print(data) # DEBUG
+
     user_message = data.get('message')
-    token = data.get('google-auth-token')
+
+    # token = data.get('google-auth-token') # UNCOMMENT AFTER TESTING
     # get email from token
     user_email = ... # TODO
+    user_email = "ernesto90543@gmail.com"
 
     try:
         user_message = user_message.strip()

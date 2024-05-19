@@ -1,4 +1,4 @@
-from utils.wrappers import Arctic
+from utils.wrappers import Arctic, GPT
 from pydantic import BaseModel, Field
 
 from langchain_core.output_parsers import StrOutputParser
@@ -8,7 +8,14 @@ from langchain_core.prompts import (
 )
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableLambda
+from langchain.agents import initialize_agent, Tool
+from langchain.chains import LLMMathChain
 from ast import literal_eval
+from backend.v1.database import RdsManager
+import regex as re
+import json
+import base64
+import os
 
 _SYS_PROMPT = """
 System: You are working for the software app Nirvana, which helps users (often managers of teams)
@@ -30,8 +37,15 @@ class Agent(BaseModel):
     def __str__(self):
         return self.name, self.description
 
-def dict_to_str(d: dict):
-        return "\n".join([f"{k}: {v}" for k, v in d.items()])
+def dict_to_str(d: dict, indent: int = 0) -> str:
+    lines = []
+    for k, v in d.items():
+        if isinstance(v, dict):
+            lines.append(" " * indent + f"{k}:")
+            lines.append(dict_to_str(v, indent + 4))
+        else:
+            lines.append(" " * indent + f"{k}: {v}")
+    return "\n".join(lines)
 
 """
 Chains:
@@ -281,7 +295,7 @@ def extract_features(email: str, schema: str) -> dict:
     - "users": List of JIRA user keys
     """
 
-    prefix = """
+    prefix = _SYS_PROMPT + """
     You are an assistant working on the data aggregation and analysis module of the Nirvana app. 
     Your task is to extract relevant information from the incoming email and store it in the database for future analysis and insights. 
     This involves identifying key data points from the email, deciding what would be relevant for providing future recommendations or insights,
@@ -433,60 +447,135 @@ def generate_sql(request: str, schema: str) -> dict:
 
     return {"sql_query": output}
 
-def route_agent(self, message: str, agents: list[Agent]) -> dict:
-    options = ["SELF"] + [agent.name for agent in agents]
+def generate_visualization(args: list) -> dict:
+    """
+    Given a single request and data, generate a base64 encoded image of a visualization for the data.
+    """
+    libs = ["matplotlib", "seaborn", "pandas", "numpy"]
+
+    try:
+        args = json.loads(args)
+        request = args[0]
+        data = dict_to_str(json.loads(args[1]))
+    except:
+        print("Error parsing args:", args)
+        request = re.sub("(\{|\})", "", args)
+        data = re.sub("(\{|\})", "", args)
+
+    prefix = _SYS_PROMPT + f"""
+    You are a data visualization expert working on the data analysis module of the Nirvana app.
+
+    Given the below specification and provided data, return a Python script that generates the relevant visualization.
+    The code should save the visualization as an image to the local path "visualization.png". Do not display the visualization.
+
+    You can assume you have access to the following libraries, and you can import them as needed:
+    {libs}
+
+    Return the code, and ONLY the code. Do not include any additional text or comments in the response.
+    """
+
+    # example_prompt = PromptTemplate(
+    #     input_variables=["request", "data", "visualization_code"],
+    #     template="""
+    #     Request: {request}
+    #     Data: {data}
+    #     Visualization Code: {visualization_code}
+    # """
+    # )
+
+    # examples = [{
+    #     "request": "Create a bar chart showing the distribution of tasks by their status. Highlight tasks with due dates.",
+    #     "data": """
+    # [{"Summary": "Explore my surroundings", "Status": "To Do", "DueDate": null},
+    # {"Summary": "Escape the dragon", "Status": "To Do", "DueDate": null},  
+    # {"Summary": "Build your character", "Status": "To Do", "DueDate": "2024-05-17"},
+    # {"Summary": "Get wood", "Status": "To Do", "DueDate": null}]
+    #     """,
+    #     "visualization_code": """
+    #     import pandas as pd
+    #     import matplotlib.pyplot as plt
+    #     import seaborn as sns
+
+    #     # Data
+    #     data = ['Summary: Explore my surroundings\nStatus: To Do\nDueDate: None',     
+    #             'Summary: Escape the dragon\nStatus: To Do\nDueDate: None',
+    #             'Summary: Build your character\nStatus: To Do\nDueDate: 2024-05-17',  
+    #             'Summary: Get wood\nStatus: To Do\nDueDate: None']
+
+    #     # Create dataframe from data
+    #     df = pd.DataFrame(data, columns=['Description'])
+
+    #     # Extract status and due date from the description column
+    #     df[['Status', 'DueDate']] = df['Description'].str.split('\n', expand=True).iloc[:, 1:3]
+    #     df['DueDate'] = df['DueDate'].str.extract('(\d{4}-\d{2}-\d{2})')
+    #     df['DueDate'] = pd.to_datetime(df['DueDate'], errors='coerce')
+    #     df['Has Due Date'] = df['DueDate'].notnull()
+
+    #     # Plot bar chart of task distribution by status with highlighted tasks having due dates
+    #     plt.figure(figsize=(8, 6))
+    #     sns.countplot(x='Status', hue='Has Due Date', data=df)
+    #     plt.title('Task Distribution by Status')
+    #     plt.xlabel('Status')
+    #     plt.ylabel('Count')
+    #     plt.savefig('visualization.png')
+    #     """
+    # }
+    # ]
+
+    # prompt = FewShotPromptTemplate(
+    #     examples=examples,
+    #     example_prompt=example_prompt,
+    #     input_variables=["request", "data"],
+    #     suffix="Request: {request}\nData: {data}\nVisualization Code:",
+    #     prefix=prefix
+    # )
+
+    prompt = PromptTemplate.from_template(
+        prefix + """
+        Request: {request}
+        Data: {data}
+        """
+    )
 
     chain = (
-        PromptTemplate.from_template(
-            _SYS_PROMPT + f"""
-            You are a supervisor, tasked with managing user requests while having access to the
-            following members on your team: {agents}.
-
-            Given the following user request, classify it as being a request you could either fulfill yourself, or that
-            one of your team members could better handle.
-
-            Select one of: {options}
-            """
-            + """
-            Request: {message}
-            """
-        )
+        prompt
         | Arctic()
         | StrOutputParser()
     )
 
-    return chain.invoke({"message": message})
+    print("Request:", request)
 
-# def function_call(request: str, functions: list[str]) -> dict:
-#     """
-#     Given an email and a list of functions, return the correct function call, if any.
-#     """
+    print("Data Type:", type(data))
+    print("Data:", data)
 
-#     prefix: str = f"""
-#     You are an assistant working on the JIRA integration module of the Nirvana app.
-#     A user has given us an email, and we a set of functions available to us. 
-#     We have to make a decision about which functions (could be 0, one, or multiple) to use. 
-#     This call will be formatted as a Python function call that will be executed.
+    try:
+        code = chain.invoke({"request": request, "data": data})
+    except Exception as e:
+        raise e
 
-#     We have access to the following functions:
-#     {functions}
+    print("Code:", code)
 
-#     Given the below email and a list of functions, return the Python function call that corresponds to the action to be taken.
-#     If the function has required parameters, include them in the function call. If the function has
-#     optional parameters, you can include them if you think they are relevant to the action to be taken. Return
-#     the function call, or calls, as a list of Python strings where each string is a Python function call.
-#     """
+    code = re.sub("(```python|```py|```)", "", code)
 
-#     example_prompt = PromptTemplate(
-#         input_variables=["email", "functions", "function_call"],
-#         template="""
-#         Email: {email}
-#         Functions: {functions}
-#         Function Call: {function_call}
-#         """
-#     )
+    try:
+        exec(code) # do some checking later
+    except Exception as e:
+        print("Error executing visualization code:", e)
+        return {"result": f"Error executing visualization code: {e}"}
 
-#     ...
+    print("Visualization generated successfully.")
+
+    try:
+        with open("visualization.png", "rb") as f:
+            base64_img = base64.b64encode(f.read()).decode("utf-8")
+
+        # os.remove("visualization.png")
+    except Exception as e:
+        print("Error generating visualization:", e)
+        return {"result": f"Error generating visualization: {e}"}
+
+    return {"result": "Successfully generated visualization to file visualization.png"}
+
 
 class Function(BaseModel):
     string: str = Field(..., title="The function and its parameters as a Python function call string")
@@ -496,113 +585,74 @@ class Function(BaseModel):
         return self.string, self.description
 
 class ChatArctic:
-    def __init__(self):
-        self.model = Arctic()
+    """
+    Wrapper for Arctic Model that handles the /chat endpoint.
 
-        plotter_agent = Agent(name="Plotter", description="Agent that can retrieve and plot data from the database - use if the user asks for data visualization.")
-        sql_agent = Agent(name="SQL Query", description="Agent that can generate SQL queries based on user requests and the database schema - use if the user is asking for something specific about the data.")
+    Given the user's email (to access the db), answers any questions about the data.
 
-        self.agents = [
-            plotter_agent,
-            sql_agent
-        ]
+    The model should be able to:
+    - Visualize data
+    - Answer specific questions about the data
+    """
+    def __init__(self, rds: RdsManager):
+        self.rds = rds
 
-    def invoke(self, message: str) -> str:
-
-        def route(x: dict) -> dict:
-            if x["route"] == "SELF":
-                return (
-                    PromptTemplate.from_template(
-                        _SYS_PROMPT + """
-                        {request}
-                        """
-                    )
-                    | Arctic()
-                    | StrOutputParser()
-                )
-            else:
-                agent = x["route"]
-                print("Agent selected:", agent)
-
-                if agent == "Plotter":
-                    ...
-                elif agent == "SQL Query":
-                    ...
-                else:
-                    # TODO: in the future automatically pick closest levenshtein distance agent
-                    raise ValueError(f"Invalid agent {agent} selected.")
-
-        chain = (
-            # first step of chain:
-            # given what the current database looks like, make a decision about whether we need to use one of the
-            # agents or if the request is something else like a trivial or question or maybe something out of scope
-            RunnableLambda(lambda x: {"route" : route_agent(x, self.agents)})
-            # second step of chain:
-            # given the decision, route the message to the appropriate agent
-            | RunnableLambda(route)
+        llm_math = LLMMathChain(llm=Arctic(), verbose=True)
+        math_tool = Tool(
+            name='Calculator',
+            func=llm_math.run,
+            description="Useful for when you need to answer questions about math."
         )
 
-        # return self.model.invoke(message)
-        return chain.invoke(message.content)
+        sql_executor = Tool(
+            name='SQL Executor',
+            func=lambda x: self.rds.execute_core_sql(re.sub("(```sql|```)", "", x)),
+            description="Executes SQL queries on the database. Ensure that the queries are safe, are valid, and do not contain invalid characters. You should pass only a SQL query string to this tool."
+        )
 
-if __name__ == "__main__":
+        visualizer = Tool(
+            name='Data Visualizer',
+            func=lambda x : generate_visualization(re.sub("(```json|```)", "", x)),
+            description="""Given a list where the first index is a natural language request for the visualizer in a string format, and the second index contains the data to visualize inside a string, creates a visualization and saves it locally. 
+            The request should be a natural language prompt for the visualizer in a string format, and the data should be in a dictionary format. 
+            The request should be specific enough to generate a meaningful visualization. Assumes only one visualization is needed."""
+        )
 
-    email = """
-        Subject: Urgent: High Latency Issue Detected in Ride API
+        tools = [math_tool, sql_executor, visualizer]
 
-        From: system_monitoring@ridecompany.com
+        self.agent = initialize_agent(
+            agent="zero-shot-react-description",
+            tools=tools,
+            llm=GPT(model="gpt-4o", temperature=0.4, api_key=os.getenv("OPENAI_API_KEY")),
+            max_iterations=7,
+            handle_parsing_errors=True,
+            verbose=True # Set to False for production
+        )
 
-        Date: May 10, 2024, 09:15 AM
+    def invoke(self, message: str) -> str:
+        metadata = self.rds.get_metadata()
+        # print("-llm.py Metadata:", metadata)
+        return self.agent.run(_SYS_PROMPT 
+                            + f"""
+                            You are ChatNirvana, a chatbot assistant that helps users by answering questions about their data that we have stored.
+                            Given the user's message, provide a response that thoroughly answers their question or query. You can use the tools available to you to help answer the user's questions.
+                            This may involve generating SQL queries, performing calculations, generating visualizations, and/or providing explanations based on the data we have stored.
 
-        To: john.doe@ridecompany.com
+                            If you need to generate a query, assume that information the user may give you to identify the appropriate data is very likely inaccurate and just generally referencing the real values.
+                            For instance, a user may say "I want to see the data for the feedback table", but the actual table name is "client_feedback".
+                            Sometimes, it may be better to execute a query to get all of the values in question to figure out what the user is talking about.
+                            For instance, if a user makes a vague request referencing a task that is about "budgets", you may want to execute a query to get all of task descriptions to see which one, or which ones, they are specifically referencing.
 
-        Dear John,
+                            If you need to generate a visualization, you likely need to execute a query to get the data you need to visualize.
+                            Then, you can use the data to generate the visualization. If the function returns a success, you can assume we have the visualization.
+                            Along with any other text you may need to respond with, you can include the visualization in your response to the user like so: "<viz>".
+                            You can assume that in a post-processing step, the <viz> will be converted to an actual image.
 
-        We have detected an unexpected spike in latency on the Ride API today at 08:45 AM, with response times exceeding 500ms, which is beyond the acceptable threshold of 200ms. This issue appears to be impacting multiple endpoints, particularly those handling ride booking requests.
+                            When you want to provide your final response to the user, make sure to prepend the response with "Final Answer:".
 
-        Initial Findings:
+                            For context, this is what the database tables and columns currently look like:
+                            {metadata}
 
-        The latency spike correlates with a significant increase in ride booking requests.
-        Preliminary logs indicate possible database bottlenecks.
-        Impact:
-
-        Increased customer complaints about app responsiveness.
-        Potential drop in user satisfaction and increased churn risk.
-        Please address this as a priority.
-
-        Best Regards,
-        System Monitoring Team
-        Ride Company
-    """
-
-    context = {
-        "projects": ["Ride Operations", "API Development", "Customer Service Platform"],
-        "issues": ["Ride-142: Ride API Latency Over 300ms Last Quarter", 
-                   "Ride-198: Database Optimization for Scalability", 
-                   "CUST-77: Customer Complaints on App Responsiveness"],
-        "recent updates": ["RIDE-198 updated yesterday with new DB schema proposals.",
-                           "CUST-77 has a scheduled review today to discuss recent feedback trends."],
-        "users": ["john.doe", "jane.smith", "admin"]
-    }
-
-    actions = get_jira_actions(email, context)
-
-    print("==Suggested actions==\n\n", actions["actions"])
-
-    for action in actions["actions"]:
-        api_call = get_jira_api_call(email, action, context)
-        print("API Call:", api_call["api_call"])
-
-    # extracted_info = extract_features(email, """
-    #     Table: System Alerts
-    #     Columns:
-    #     - sender: VARCHAR(255)
-    #     - date: DATE
-    #     - subject: VARCHAR(255)
-    #     - message: TEXT
-    #     - recipient: VARCHAR(255)
-    #     - impact: TEXT
-    #     - findings: TEXT
-    # """)
-    # print("==Extracted Information==\n\n", extracted_info["extracted_information"])
-
+                            User's Message:
+                            """
+                            + message)
