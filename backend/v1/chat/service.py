@@ -2,6 +2,8 @@ from backend.v1.llm import ChatArctic
 from backend.v1.database import RdsManager
 from dotenv import load_dotenv
 import os
+import regex as re
+import base64
 
 load_dotenv()
 
@@ -19,4 +21,15 @@ def process_chat(user_message: str, user_email: str) -> str:
         metadata = rds.get_metadata()
         print("-service.py Metadata: ", metadata)
         model = ChatArctic(rds=rds)
-        return model.invoke(user_message)
+        response = model.invoke(user_message)
+
+        print("Model response: ", response)
+
+        # if <viz> in response
+        if "<viz>" in response:
+            with open("visualization.png", "rb") as f:
+                viz = base64.b64encode(f.read()).decode("utf-8")
+            os.remove("visualization.png") # Remove the file after reading it
+            response = re.sub(r"<viz>", f"""<viz encoding="{viz}">""", response)
+
+        return response
