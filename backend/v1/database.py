@@ -63,6 +63,7 @@ class RdsManager():
             
         try:
             self.cursor.execute(sql, values)
+            return self.cursor.fetchall() 
         except Exception as e:
             print(f"Error executing SQL: {str(e)}")
 

@@ -3,10 +3,9 @@ from backend.v1.database import RdsManager
 from dotenv import load_dotenv
 import os
 
-def ingest_data(email: str) -> str:
+def ingest_data(email: str, user_email: str) -> str:
     """Given an email, extract any features we may want to remember and store them in the database."""
     load_dotenv()
-    user_email = "ernesto90643@gmail.com"
 
     with RdsManager(
         os.getenv("DB_HOST"),
