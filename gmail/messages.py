@@ -122,6 +122,19 @@ def get_body_text(payload: dict) -> str:
     return ""
 
 
+def get_gmail_address(session) -> str:
+    """Given a user's token, fetch their email."""
+    try:
+        service = build("gmail", "v1", credentials=session.creds)
+
+        # Get Email ID
+        results = service.users().getProfile(userId="me").execute()
+        return results.get("emailAddress", None)
+    except HttpError as error:
+        print(f"An error occured: {error}")
+        return None
+
+
 def get_pdf_attachment_ids(payload: dict, ids: list):
     if payload.get("mimeType", "") == "application/pdf":
         if payload.get("body", {}).get("size") != 0:
