@@ -1,17 +1,24 @@
 import streamlit as st
-from gmail.messages import get_messages
+from gmail import gmail_credentials_exists, get_messages
+from streamlit_cookies_controller import CookieController
 
 # Set page title and favicon
 st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:", layout="wide")
+
+cookie_controller = CookieController()
 
 # App title and description
 st.title("Gmail Wrapper")
 st.write("Access and manage your Gmail inbox with ease.")
 
-logged_in = st.session_state.get("logged_in", False)
+gmail_uuid = None
+try:
+    gmail_uuid = cookie_controller.get('gmail_uuid')
+except TypeError:
+    pass
 
 # Inbox section
-if logged_in:
+if gmail_uuid and gmail_credentials_exists(gmail_uuid):
     st.success("Logged in successfully!")
 
     st.header("Inbox")
@@ -47,12 +54,15 @@ if logged_in:
                 st.session_state["email_page_num"] = current_value + 1
                 email_change_callback()
 
+    from gmail import get_gmail_credentials
+    # st.write(get_gmail_credentials(gmail_uuid))
     email_list = st.empty()
     with email_list.container():
 
         # Prevent emails from being fetched multiple times
         if not st.session_state.get("emails", None) or st.session_state.get("update_emails", False):
             emails = get_messages(
+                gmail_uuid,
                 st.session_state,
                 maxResults=emails_per_page,
                 page_number=st.session_state.get("email_page_num", 1),
