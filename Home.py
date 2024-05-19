@@ -119,8 +119,8 @@ with col2:
             if id:
                 cookie_controller.set('jira_uuid', id)
                 time.sleep(SLEEP_TIME)
-            # st.query_params.clear()
-            # st.rerun()
+            st.query_params.clear()
+            st.rerun()
         else:
             authorization_url, state = get_jira_authorization_url()
 

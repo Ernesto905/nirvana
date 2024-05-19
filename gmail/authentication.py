@@ -10,7 +10,7 @@ from google_auth_oauthlib.flow import Flow
 
 load_dotenv()
 
-HOST = 'http://localhost:8501/'
+HOST = os.getenv('HOST')
 
 credentials_json = {
     "web": {
