@@ -12,6 +12,9 @@ from langchain.agents import initialize_agent, Tool
 from langchain.chains import LLMMathChain
 from ast import literal_eval
 from backend.v1.database import RdsManager
+import regex as re
+import json
+import base64
 import os
 
 _SYS_PROMPT = """
@@ -34,8 +37,15 @@ class Agent(BaseModel):
     def __str__(self):
         return self.name, self.description
 
-def dict_to_str(d: dict):
-        return "\n".join([f"{k}: {v}" for k, v in d.items()])
+def dict_to_str(d: dict, indent: int = 0) -> str:
+    lines = []
+    for k, v in d.items():
+        if isinstance(v, dict):
+            lines.append(" " * indent + f"{k}:")
+            lines.append(dict_to_str(v, indent + 4))
+        else:
+            lines.append(" " * indent + f"{k}: {v}")
+    return "\n".join(lines)
 
 """
 Chains:
@@ -285,7 +295,7 @@ def extract_features(email: str, schema: str) -> dict:
     - "users": List of JIRA user keys
     """
 
-    prefix = """
+    prefix = _SYS_PROMPT + """
     You are an assistant working on the data aggregation and analysis module of the Nirvana app. 
     Your task is to extract relevant information from the incoming email and store it in the database for future analysis and insights. 
     This involves identifying key data points from the email, deciding what would be relevant for providing future recommendations or insights,
@@ -437,6 +447,132 @@ def generate_sql(request: str, schema: str) -> dict:
 
     return {"sql_query": output}
 
+def generate_visualization(args: list) -> dict:
+    """
+    Given a single request and data, generate a base64 encoded image of a visualization for the data.
+    """
+    libs = ["matplotlib", "seaborn", "pandas", "numpy"]
+
+    try:
+        args = json.loads(args)
+        request = args[0]
+        data = dict_to_str(json.loads(args[1]))
+    except:
+        print("Error parsing args:", args)
+        request = re.sub("(\{|\})", "", args)
+        data = re.sub("(\{|\})", "", args)
+
+    prefix = _SYS_PROMPT + f"""
+    You are a data visualization expert working on the data analysis module of the Nirvana app.
+
+    Given the below specification and provided data, return a Python script that generates the relevant visualization.
+    The code should save the visualization as an image to the local path "visualization.png". Do not display the visualization.
+
+    You can assume you have access to the following libraries, and you can import them as needed:
+    {libs}
+
+    Return the code, and ONLY the code. Do not include any additional text or comments in the response.
+    """
+
+    # example_prompt = PromptTemplate(
+    #     input_variables=["request", "data", "visualization_code"],
+    #     template="""
+    #     Request: {request}
+    #     Data: {data}
+    #     Visualization Code: {visualization_code}
+    # """
+    # )
+
+    # examples = [{
+    #     "request": "Create a bar chart showing the distribution of tasks by their status. Highlight tasks with due dates.",
+    #     "data": """
+    # [{"Summary": "Explore my surroundings", "Status": "To Do", "DueDate": null},
+    # {"Summary": "Escape the dragon", "Status": "To Do", "DueDate": null},  
+    # {"Summary": "Build your character", "Status": "To Do", "DueDate": "2024-05-17"},
+    # {"Summary": "Get wood", "Status": "To Do", "DueDate": null}]
+    #     """,
+    #     "visualization_code": """
+    #     import pandas as pd
+    #     import matplotlib.pyplot as plt
+    #     import seaborn as sns
+
+    #     # Data
+    #     data = ['Summary: Explore my surroundings\nStatus: To Do\nDueDate: None',     
+    #             'Summary: Escape the dragon\nStatus: To Do\nDueDate: None',
+    #             'Summary: Build your character\nStatus: To Do\nDueDate: 2024-05-17',  
+    #             'Summary: Get wood\nStatus: To Do\nDueDate: None']
+
+    #     # Create dataframe from data
+    #     df = pd.DataFrame(data, columns=['Description'])
+
+    #     # Extract status and due date from the description column
+    #     df[['Status', 'DueDate']] = df['Description'].str.split('\n', expand=True).iloc[:, 1:3]
+    #     df['DueDate'] = df['DueDate'].str.extract('(\d{4}-\d{2}-\d{2})')
+    #     df['DueDate'] = pd.to_datetime(df['DueDate'], errors='coerce')
+    #     df['Has Due Date'] = df['DueDate'].notnull()
+
+    #     # Plot bar chart of task distribution by status with highlighted tasks having due dates
+    #     plt.figure(figsize=(8, 6))
+    #     sns.countplot(x='Status', hue='Has Due Date', data=df)
+    #     plt.title('Task Distribution by Status')
+    #     plt.xlabel('Status')
+    #     plt.ylabel('Count')
+    #     plt.savefig('visualization.png')
+    #     """
+    # }
+    # ]
+
+    # prompt = FewShotPromptTemplate(
+    #     examples=examples,
+    #     example_prompt=example_prompt,
+    #     input_variables=["request", "data"],
+    #     suffix="Request: {request}\nData: {data}\nVisualization Code:",
+    #     prefix=prefix
+    # )
+
+    prompt = PromptTemplate.from_template(
+        prefix + """
+        Request: {request}
+        Data: {data}
+        """
+    )
+
+    chain = (
+        prompt
+        | Arctic()
+        | StrOutputParser()
+    )
+
+    print("Request:", request)
+
+    print("Data Type:", type(data))
+    print("Data:", data)
+
+    try:
+        code = chain.invoke({"request": request, "data": data})
+    except Exception as e:
+        raise e
+
+    print("Code:", code)
+
+    code = re.sub("(```python|```py|```)", "", code)
+
+    exec(code) # do some checking later
+
+    print("Visualization generated successfully.")
+
+    try:
+        with open("visualization.png", "rb") as f:
+            base64_img = base64.b64encode(f.read()).decode("utf-8")
+
+        # os.remove("visualization.png")
+    except Exception as e:
+        print("Error generating visualization:", e)
+        return {"result": f"Error generating visualization: {e}"}
+
+    return {"result": "Successfully generated visualization to file visualization.png"}
+
+
 class Function(BaseModel):
     string: str = Field(..., title="The function and its parameters as a Python function call string")
     description: str = Field(..., title="Description of the function")
@@ -464,31 +600,33 @@ class ChatArctic:
             description="Useful for when you need to answer questions about math."
         )
 
-        # sql_tool = Tool(
-        #     name='SQL Query Generator',
-        #     func=lambda x: generate_sql(x, dict_to_str(self.rds.get_metadata())),
-        #     description="Generates SQL queries based on a provided request. Be specific in your request to get better results. Tool already knows the schema of the database."
-        # )
-
         sql_executor = Tool(
             name='SQL Executor',
-            func=lambda x: self.rds.execute_core_sql(x),
+            func=lambda x: self.rds.execute_core_sql(re.sub("(```sql|```)", "", x)),
             description="Executes SQL queries on the database. Ensure that the queries are safe, are valid, and do not contain invalid characters. You should pass only a SQL query string to this tool."
         )
 
-        tools = [math_tool, sql_executor]
+        visualizer = Tool(
+            name='Data Visualizer',
+            func=lambda x : generate_visualization(re.sub("(```json|```)", "", x)),
+            description="""Given a list where the first index is a natural language request for the visualizer in a string format, and the second index contains the data to visualize inside a string, creates a visualization and saves it locally. 
+            The request should be a natural language prompt for the visualizer in a string format, and the data should be in a dictionary format. 
+            The request should be specific enough to generate a meaningful visualization. Assumes only one visualization is needed."""
+        )
+
+        tools = [math_tool, sql_executor, visualizer]
 
         self.agent = initialize_agent(
             agent="zero-shot-react-description",
             tools=tools,
             llm=GPT(model="gpt-4o", temperature=0.4, api_key=os.getenv("OPENAI_API_KEY")),
-            max_iterations=4,
+            max_iterations=5,
             verbose=True # Set to False for production
         )
 
     def invoke(self, message: str) -> str:
         metadata = self.rds.get_metadata()
-        print("-llm.py Metadata:", metadata)
+        # print("-llm.py Metadata:", metadata)
         return self.agent.run(_SYS_PROMPT 
                             + f"""
                             You are ChatNirvana, a chatbot assistant that helps users by answering questions about their data that we have stored.
@@ -499,6 +637,11 @@ class ChatArctic:
                             For instance, a user may say "I want to see the data for the feedback table", but the actual table name is "client_feedback".
                             Sometimes, it may be better to execute a query to get all of the values in question to figure out what the user is talking about.
                             For instance, if a user makes a vague request referencing a task that is about "budgets", you may want to execute a query to get all of task descriptions to see which one, or which ones, they are specifically referencing.
+
+                            If you need to generate a visualization, you likely need to execute a query to get the data you need to visualize.
+                            Then, you can use the data to generate the visualization. If the function returns a success, you can assume we have the visualization.
+                            Along with any other text you may need to respond with, you can include the visualization in your response to the user like so: "<img></img>".
+                            You can assume that in a post-processing step, the <img></img> will be converted to an actual image.
 
                             For context, this is what the database tables and columns currently look like:
                             {metadata}
