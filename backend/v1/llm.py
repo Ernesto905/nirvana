@@ -557,7 +557,11 @@ def generate_visualization(args: list) -> dict:
 
     code = re.sub("(```python|```py|```)", "", code)
 
-    exec(code) # do some checking later
+    try:
+        exec(code) # do some checking later
+    except Exception as e:
+        print("Error executing visualization code:", e)
+        return {"result": f"Error executing visualization code: {e}"}
 
     print("Visualization generated successfully.")
 
@@ -620,7 +624,8 @@ class ChatArctic:
             agent="zero-shot-react-description",
             tools=tools,
             llm=GPT(model="gpt-4o", temperature=0.4, api_key=os.getenv("OPENAI_API_KEY")),
-            max_iterations=5,
+            max_iterations=7,
+            handle_parsing_errors=True,
             verbose=True # Set to False for production
         )
 
@@ -640,8 +645,10 @@ class ChatArctic:
 
                             If you need to generate a visualization, you likely need to execute a query to get the data you need to visualize.
                             Then, you can use the data to generate the visualization. If the function returns a success, you can assume we have the visualization.
-                            Along with any other text you may need to respond with, you can include the visualization in your response to the user like so: "<img></img>".
-                            You can assume that in a post-processing step, the <img></img> will be converted to an actual image.
+                            Along with any other text you may need to respond with, you can include the visualization in your response to the user like so: "<viz>".
+                            You can assume that in a post-processing step, the <viz> will be converted to an actual image.
+
+                            When you want to provide your final response to the user, make sure to prepend the response with "Final Answer:".
 
                             For context, this is what the database tables and columns currently look like:
                             {metadata}
