@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.jira.service import generate_actions, execute_action
-from backend.v1.auth import google_auth_required, jira_auth_required
+from backend.v1.auth import jira_auth_required
 from backend.v1.jira import JiraClient
 
 bp = Blueprint('jira', __name__, url_prefix='/jira')
@@ -35,11 +35,13 @@ def actions():
 def execute():
     """
     Expected Payload:
+    - email: str with the email in question
     - action: dict with the action to be executed
     - jira-cloud-id: str with the jira cloud id
     - jira-auth-token: dict with the jira auth token
     """
     data = request.get_json()
+    email = data.get('email')
     action = data.get('action')
     jira_cloud_id = data.get('jira-cloud-id')
     jira_auth_token = data.get('jira-auth-token')
@@ -50,7 +52,7 @@ def execute():
         return jsonify({"status": 401, "error": f"Jira authentic error: {e}"})
 
     try:
-        execute_action(action, jc)
+        execute_action(email, action, jc)
     except Exception as e:
         return jsonify({"status": 500, "error": f"Error executing action: {e}"})
 
