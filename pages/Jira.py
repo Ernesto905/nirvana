@@ -16,7 +16,7 @@ else:
     # Drop-down feature for displaying issues
     if st.checkbox("Show All Issues"):
         issues_json = client.get_all_issues()
-        issues = json.loads(issues_json)
+        issues = issues_json
 
         for issue in issues['issues']:
             issue_key = issue['key']
@@ -41,7 +41,7 @@ else:
     if st.button("Search"):
         if jql_query:
             search_results_json = client.search_with_jql(jql_query)
-            search_results = json.loads(search_results_json)
+            search_results = search_results_json
 
             if search_results['issues']:
                 for issue in search_results['issues']:
@@ -71,7 +71,7 @@ else:
     project = st.selectbox("Select Project", options=["KAN"])
     summary = st.text_input("Issue Summary")
     description = st.text_area("Issue Description")
-    labels_input = st.text_input("Enter labels separated by spaces:")
+    labels = st.text_input("Enter labels separated by spaces:")
     username = st.text_input("Your Username")
     priority = st.selectbox("Select Priority", options=["Low", "Medium", "High", "Highest"])
     issue_type = st.selectbox("Select Issue Type", options=["Bug", "Task", "Epic"])
@@ -84,7 +84,7 @@ else:
         due_date = formatted_date
 
     # Convert the input string to an array of unique labels
-    if labels_input:
+    if labels:
         labels_array = labels_input.split()  
         labels = list(set(labels_array)) 
 
@@ -93,6 +93,8 @@ else:
         try:
             # Convert the username to a user ID.
             user_id = client.get_userid_by_name(username)
+
+            print(f"due date is {due_date}")
             result = client.create_issue(project, summary, description, user_id, priority, issue_type, due_date, labels)
             st.success("Issue created successfully! Issue ID: " + str(result))
         except Exception as e:
