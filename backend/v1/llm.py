@@ -89,6 +89,8 @@ def generate_actions(email: str, context: dict, funcs: list) -> dict:
 
     If there are no actions to take, return "NONE". Otherwise, return a Python formatted list of the actions, such that the actions
     are dictionaries.
+
+    Return the list, and ONLY the list. Do not include any additional text or comments in the response.
     """
 
     example_prompt = PromptTemplate(
@@ -184,7 +186,7 @@ def generate_actions(email: str, context: dict, funcs: list) -> dict:
         examples=examples,
         example_prompt=example_prompt,
         input_variables=["email", "context", "funcs"],
-        suffix="Email: {email}\nContext: {context}\nFunctions: {funcs}\nActions:",
+        suffix="Email: {email}\nContext: {context}\nFunctions: {funcs}\nActions (return only a list, or NONE if there are no actions to take):",
         prefix=prefix
     )
 
@@ -197,6 +199,8 @@ def generate_actions(email: str, context: dict, funcs: list) -> dict:
     )
 
     output = chain.invoke({"email": email, "context": context, "funcs": funcs})
+
+    output = re.sub("(```python|```py|```)", "", output)
 
     if "NONE" in output:
         return []
