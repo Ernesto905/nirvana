@@ -64,8 +64,14 @@ class JiraClient:
         This function returns a string.
         """
         payload = self.search_with_jql(f"assignee = \"{name}\"")
-        json_data = json.loads(payload)
+        print("1")
+        # json_data = json.loads(payload)
+        json_data = payload
+        print("2")
         user_id = json_data['issues'][0]['fields']['assignee']['accountId']
+        print("3")
+        user_id = user_id
+        print("4")
         return user_id
 
     """
@@ -83,9 +89,9 @@ class JiraClient:
         labels -> str[]: A list of strings, each indicating a lable
     """
 
-    def create_issue(self, project, summary, description, assignee, priority, issue_type, due_date, labels):
+    def create_issue(self, project, summary, description=None, assignee=None, priority=None, issue_type=None, due_date=None, labels=None):
         """
-        Creates a jira issue of a given type and assign it to a given user.  
+        Creates a jira issue of a given type and assign it to a given user.
         """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}"
 
@@ -95,45 +101,76 @@ class JiraClient:
             "Content-Type": "application/json"
         }
 
-        data = json.dumps({
+        data = {
             "fields": {
                 "project": {
-                    "key": project 
+                    "key": project
                 },
-                "assignee": {
-                    "id": assignee
-                },
-                "summary": summary,
-                "description": {
-                    "type": "doc",
-                    "version": 1,
-                    "content": [
-                        {
-                            "type": "paragraph",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": description
-                                }
-                            ]
-                        }
-                    ]
-                },
-                "priority": {
-                  "name": priority
-                },
-                "duedate": due_date,
-                "issuetype": {
-                    "name": issue_type
-                }
+                "summary": summary
             }
-        })
+        }
 
-        response = requests.post(url, headers=headers, data=data)
+        if description:
+            data["fields"]["description"] = {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": description
+                            }
+                        ]
+                    }
+                ]
+            }
+
+        if assignee:
+            data["fields"]["assignee"] = {
+                "id": assignee
+            }
+
+        if priority:
+            data["fields"]["priority"] = {
+                "name": priority
+            }
+
+        # if due_date:
+        #     data["fields"]["duedate"] = due_date
+
+        if issue_type:
+            data["fields"]["issuetype"] = {
+                "name": issue_type
+            }
+
+        if labels:
+            data["fields"]["labels"] = labels
+
+        response = requests.post(url, headers=headers, json=data)
+        print(response.text)
         response.raise_for_status()
 
-        data = response.json()
-        return json.dumps(data)
+        return response.json()
+
+    # def get_issue_metadata(self, project, issue_type):
+    #     url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/api/3/issue/createmeta/{project}/issuetypes/{issue_type}"
+    #
+    #     headers = {
+    #       "Accept": "application/json"
+    #     }
+    #
+    #     response = requests.get(url, headers=headers)
+    #     print(response.text)
+    #     response.raise_for_status()
+    #
+    #     data = response.json()
+    #     return data
+    #
+
+
+
 
     def update_issue(self, issue, due_date, assignee, status, priority):
         """
