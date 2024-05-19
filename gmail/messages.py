@@ -139,7 +139,13 @@ def parse_date(date: str) -> dict:
     expression = r"^(?P<day_of_week>\w{3}),\s+(?P<day>\d{1,2})\s+(?P<month>\w+)\s+(?P<year>\d+)\s+(?P<time>.*)$"
     search_result = re.search(expression, date)
     if not search_result:
-        return {}
+        return {
+            "day_of_week": "",
+            "day": "",
+            "month": "",
+            "year": "",
+            "time": ""
+        }
     result = search_result.groupdict()
     result["day"] = int(result["day"])
     result["year"] = int(result["year"])
