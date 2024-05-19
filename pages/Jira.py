@@ -9,7 +9,7 @@ if 'access_token' not in st.session_state:
 else:
     access_token = st.session_state['access_token']
     cloud_id = get_cloudid(access_token)
-    
+
     st.session_state.JiraClient = JiraClient(cloud_id, access_token)
     client = st.session_state.JiraClient
 
@@ -17,7 +17,7 @@ else:
     if st.checkbox("Show All Issues"):
         issues_json = client.get_all_issues()
         issues = json.loads(issues_json)
-        
+
         for issue in issues['issues']:
             issue_key = issue['key']
             issue_summary = issue['fields']['summary']
@@ -26,7 +26,7 @@ else:
             issue_priority = issue['fields']['priority']['name']
             issue_assignee = issue['fields']['assignee']['displayName'] if issue['fields']['assignee'] else 'Unassigned'
             issue_created = issue['fields']['created']
-            
+
             with st.expander(f"{issue_key}: {issue_summary}"):
                 st.write(f"**Description:** {issue_description}")
                 st.write(f"**Status:** {issue_status}")
@@ -42,7 +42,7 @@ else:
         if jql_query:
             search_results_json = client.search_with_jql(jql_query)
             search_results = json.loads(search_results_json)
-            
+
             if search_results['issues']:
                 for issue in search_results['issues']:
                     issue_key = issue['key']
@@ -52,7 +52,7 @@ else:
                     issue_priority = issue['fields']['priority']['name']
                     issue_assignee = issue['fields']['assignee']['displayName'] if issue['fields']['assignee'] else 'Unassigned'
                     issue_created = issue['fields']['created']
-                    
+
                     with st.expander(f"{issue_key}: {issue_summary}"):
                         st.write(f"**Description:** {issue_description}")
                         st.write(f"**Status:** {issue_status}")
@@ -77,12 +77,12 @@ else:
     issue_type = st.selectbox("Select Issue Type", options=["Bug", "Task", "Epic"])
     due_date = st.date_input("Select a due date:")
 
-    
+
     # Format the date as YYYY-MM-DD
     if due_date is not None:
         formatted_date = due_date.strftime('%Y-%m-%d')
         due_date = formatted_date
-    
+
     # Convert the input string to an array of unique labels
     if labels_input:
         labels_array = labels_input.split()  
@@ -136,8 +136,8 @@ else:
 
     if st.button("get proje"):
         try:
-            issues = client.projects()
-            st.success(f"issues obtained: {type(issues)}")
+            projs = client.projects()
+            st.success(f"issues obtained: {projs}")
         except Exception as e:
             st.error(f"Failed to get projects: {e}")
 
@@ -148,3 +148,10 @@ else:
             st.success(f"issues obtained: {type(issues)}")
         except Exception as e:
             st.error(f"Failed to get projects: {e}")
+
+    if st.button("Get params"):
+        try:
+            all = client.get_allowed_params()
+            st.success(f"params: {all}")
+        except Exception as e:
+            st.error(f"Failed: {e}")

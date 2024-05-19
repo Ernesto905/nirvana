@@ -27,7 +27,7 @@ class JiraClient:
         data = response.json()
         return data
 
-    
+
     def get_all_issues(self):
         """
         Returns all issues in an account as a python dict 
@@ -39,7 +39,7 @@ class JiraClient:
 
         data = response.json()
         return data
-    
+
     def search_with_jql(self, jql):
         """
         Perform search with JQL-- Jira's inbuild query language. 
@@ -56,7 +56,7 @@ class JiraClient:
         response.raise_for_status()
 
         data = response.json()
-        return json.dumps(data)
+        return data
 
     def get_userid_by_name(self, name):
         """
@@ -233,10 +233,10 @@ class JiraClient:
             if transition['name'] == status_name:
                 return transition['id']
         return None
-    
 
 
-    
+
+
     """
     The following functions return the allowed parameters of a 
     jira ticket. For example, what priorities, statuses, users, etc.
@@ -249,29 +249,53 @@ class JiraClient:
         """
         return [transition['name'] for transition in transitions_json.get('transitions', [])]
 
-
-    def get_allowed_params(self): 
+    def get_allowed_params(self):
         """
-        This function returns one big payload where, for each project, 
-        it lists out 
-            issues : []
-            members : []
-            labels : []
-            priorities : []
-            statuses : []
+        Extract and structure important issue data for all projects as a single JSON structure.
 
-        return type: Python Dictionary
+        Returns:
+            str: JSON string containing structured data on projects and associated issues.
         """
+        projects = self.projects()  
+        output = {}
 
-        projects = [project['name'] for project in self.projects() if 'name' in project]
-        # issues = 
-        
-    
-        
+        for project in projects:
+            project_name = project['name']
+            project_data = {
+                "issues": [],
+                "members": set(),
+                "labels": set(),
+                "priorities": set()
+            }
 
+            # Extract issues for each project using JQL or an appropriate method
+            project_issues = self.search_with_jql(f'project = "{project_name}"')
+            for issue in project_issues['issues']:
+                assignee_data = issue['fields'].get('assignee')
+                simplified_issue = {
+                    "id": issue.get('id'),
+                    "key": issue.get('key'),
+                    "summary": issue['fields'].get('summary', 'No summary provided'),
+                    "status": issue['fields'].get('status', {}).get('name', 'Unknown status'),
+                    "duedate": issue['fields'].get('duedate', 'No due date'),
+                    "assignee": {
+                        "name": assignee_data.get('displayName', 'Unassigned') if assignee_data else 'Unassigned',
+                        "email": assignee_data.get('emailAddress', 'No email available') if assignee_data else 'No email available'
+                    }
+                }
+                project_data['issues'].append(simplified_issue)
 
+                if assignee_data:
+                    project_data['members'].add(assignee_data['displayName'])
 
+                project_data['labels'].update(issue['fields'].get('labels', []))
+                if issue['fields'].get('priority'):
+                    project_data['priorities'].add(issue['fields']['priority']['name'])
 
+            project_data['members'] = list(project_data['members'])
+            project_data['labels'] = list(project_data['labels'])
+            project_data['priorities'] = list(project_data['priorities'])
 
+            output[project_name] = project_data
 
-
+        return output
