@@ -1,17 +1,29 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.data.service import ingest_data
+from backend.v1.auth import google_auth_required
+from backend.v1.gmail import address_from_creds
 
 bp = Blueprint('data', __name__, url_prefix='/data')
 
 @bp.route('/', methods=['POST'])
+@google_auth_required
 def ingest():
+    """
+    Given an email, remember useful information about the user for future insights.
+
+    Expected Payload:
+    - email: str with the user's email we are ingesting data for
+    - google-auth-token: dict with user's google auth token
+    """
     data = request.get_json()
     email = data.get('email')
 
-    # Process the chat message
-    response_code = ingest_data(email)
+    token = data.get('google-auth-token')
+    user_email = address_from_creds(token)
 
-    if response_code == 200:
-        return jsonify({'message': 'Data ingested successfully'}), 200
-    else:
-        return jsonify({'message': 'Data ingestion failed'}), 500
+    # Process the chat message
+    try: 
+        ingest_data(email, user_email)
+        return jsonify({'status': 200, 'response': 'Data ingested successfully'})
+    except Exception as e:
+        return jsonify({'status': 500, 'response': f'Data ingestion failed due to the following exception: {e}'})

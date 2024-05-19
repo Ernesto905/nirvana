@@ -17,7 +17,7 @@ class JiraClient:
 
     def projects(self):
         """
-        Returns all jira projects
+        Returns all jira projects as a python list 
         """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.project_api_path}"
 
@@ -27,16 +27,19 @@ class JiraClient:
         data = response.json()
         return data
 
-    
+
     def get_all_issues(self):
+        """
+        Returns all issues in an account as a python dict 
+        """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.search_api_path}"
 
         response = requests.get(url, headers=self.headers)
         response.raise_for_status()
 
         data = response.json()
-        return json.dumps(data)
-    
+        return data
+
     def search_with_jql(self, jql):
         """
         Perform search with JQL-- Jira's inbuild query language. 
@@ -53,7 +56,7 @@ class JiraClient:
         response.raise_for_status()
 
         data = response.json()
-        return json.dumps(data)
+        return data
 
     def get_userid_by_name(self, name):
         """
@@ -66,21 +69,21 @@ class JiraClient:
         return user_id
 
     """
-    project -> Key for our project. Only current project is "KAN" 
-    summary -> A string of text recapping the issue 
-    description -> A more in depth paragraph of the issue 
-    assignee -> An ID associated with the assignee for this issue 
-        to obtain, call get_userid_by_name("ernesto enriquez")
-    priority -> An ID associated with the priority for this project 
-        Currently allows for "Low", "Medium", "High", "Highest"
+    Below are the functions to create and update a jira issue. 
 
-    TODO:
-    - update_issue(issue_key, summary, description, assignee, priority)
-    - create_task(issue_key, summary, description, assignee, priority)
-    - update_task(task_key, summary, description, assignee, priority)
+    Parameters: 
+        project -> str : Key for our project. Only current project is "KAN" 
+        summary -> str: Text recapping the issue 
+        description -> str: A more in depth paragraph of the issue 
+        assignee -> str: An ID associated with the assignee for this issue 
+            to obtain by name, call get_userid_by_name("ernesto enriquez")
+        priority -> str: An ID associated with the priority for this project 
+            Currently allows for "Low", "Medium", "High", "Highest"
+        due_date -> str: A date in the following form YYYY-MM-DD
+        labels -> str[]: A list of strings, each indicating a lable
     """
 
-    def create_issue(self, project, summary, description, assignee, priority, issue_type):
+    def create_issue(self, project, summary, description, assignee, priority, issue_type, due_date, labels):
         """
         Creates a jira issue of a given type and assign it to a given user.  
         """
@@ -117,8 +120,9 @@ class JiraClient:
                     ]
                 },
                 "priority": {
-                  "name": "Low"
+                  "name": priority
                 },
+                "duedate": due_date,
                 "issuetype": {
                     "name": issue_type
                 }
@@ -131,22 +135,167 @@ class JiraClient:
         data = response.json()
         return json.dumps(data)
 
-    def update_issue(issue_key, summary, description, assignee, priority):
-        pass
+    def update_issue(self, issue, due_date, assignee, status, priority):
+        """
+        Updates a current jira issue with a due date, status, and priority.  
+        issue parameter can be either an ID or the Name of the issue (also known as the "Key")
+        """
+        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}/{issue}"
 
-    def create_task(issue_key, summary, description, assignee, priority):
-        pass
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
 
-    def update_task(task_key, summary, description, assignee, priority):
-        pass
+        data = json.dumps({
+            "fields": {
+                "assignee": {
+                    "id": assignee
+                },
+                "priority": {
+                  "name": priority 
+                },
+                "duedate": due_date
+            }
+        })
+
+        response = requests.put(url, headers=headers, data=data)
+        if response.status_code != 204:
+            response.raise_for_status()
+
+        # Transition an issue to a new status
+        self.transfer_issue(issue, status)
+
+        return issue
 
 
-    
+    def transfer_issue(self, issue, status):
+        """
+        Transitions an issue to a new status. 
+        Default statuses are TO DO, IN PROGRESS, and DONE.
+        But more can be manually added. 
+        """
+
+        # Since status comes in a name form, we must convert it to an ID
+        transitions_json = self.get_transitions()
+        transition_as_id = self.get_transition_id_from_name(transitions_json, status)
+
+
+        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}/{issue}/transitions"
+
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+
+        data = json.dumps({
+            "transition": {
+                "id": transition_as_id
+            } 
+        })
+
+
+        response = requests.post(url, headers=headers, data=data)
+        print("Response is ", response)
+        if response.status_code != 204:
+            response.raise_for_status()
+
+
+        return issue
+
+
+    def get_transitions(self):
+        """Get allowed transitions for an issue"""
+        issue = "KAN-3"
+
+        url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}/{issue}/transitions"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+
+
+
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        data = response.json()
+        return data
+
+    def get_transition_id_from_name(self, transitions_json, status_name):
+        """
+        Retrieves the transition ID for a given status name.
+        """
+        for transition in transitions_json.get('transitions', []):
+            if transition['name'] == status_name:
+                return transition['id']
+        return None
 
 
 
 
+    """
+    The following functions return the allowed parameters of a 
+    jira ticket. For example, what priorities, statuses, users, etc.
+    are allowed in the creation of a jira ticket.
+    """
 
+    def get_all_transition_names(self, transitions_json):
+        """
+        Extracts the names of all transitions from the JSON structure.
+        """
+        return [transition['name'] for transition in transitions_json.get('transitions', [])]
 
+    def get_allowed_params(self):
+        """
+        Extract and structure important issue data for all projects as a single JSON structure.
 
+        Returns:
+            str: JSON string containing structured data on projects and associated issues.
+        """
+        projects = self.projects()  
+        output = {}
 
+        for project in projects:
+            project_name = project['name']
+            project_data = {
+                "issues": [],
+                "members": set(),
+                "labels": set(),
+                "priorities": set()
+            }
+
+            # Extract issues for each project using JQL or an appropriate method
+            project_issues = self.search_with_jql(f'project = "{project_name}"')
+            for issue in project_issues['issues']:
+                assignee_data = issue['fields'].get('assignee')
+                simplified_issue = {
+                    "id": issue.get('id'),
+                    "key": issue.get('key'),
+                    "summary": issue['fields'].get('summary', 'No summary provided'),
+                    "status": issue['fields'].get('status', {}).get('name', 'Unknown status'),
+                    "duedate": issue['fields'].get('duedate', 'No due date'),
+                    "assignee": {
+                        "name": assignee_data.get('displayName', 'Unassigned') if assignee_data else 'Unassigned',
+                        "email": assignee_data.get('emailAddress', 'No email available') if assignee_data else 'No email available'
+                    }
+                }
+                project_data['issues'].append(simplified_issue)
+
+                if assignee_data:
+                    project_data['members'].add(assignee_data['displayName'])
+
+                project_data['labels'].update(issue['fields'].get('labels', []))
+                if issue['fields'].get('priority'):
+                    project_data['priorities'].add(issue['fields']['priority']['name'])
+
+            project_data['members'] = list(project_data['members'])
+            project_data['labels'] = list(project_data['labels'])
+            project_data['priorities'] = list(project_data['priorities'])
+
+            output[project_name] = project_data
+
+        return output

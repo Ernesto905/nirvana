@@ -1,9 +1,14 @@
-"""Dummy file sending chat request to the backend"""
+"""Test for the /v1/chat endpoint."""
 
 import requests
 
 def test_message(prompt: str):
-    response = requests.post('http://localhost:5000/v1/chat', json={'message': prompt}).json()
+    response = requests.post('http://localhost:5000/v1/chat', json={
+        'message': prompt,
+        'google-auth-token': "yes"
+    }).json()
+
+    print("Response:", response)
 
     if response['status'] == 200:
         print(response['response'])
