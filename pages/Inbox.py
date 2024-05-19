@@ -63,75 +63,24 @@ if logged_in:
         else:
             emails = st.session_state["emails"]
 
-        selected_email_indices = []
         for i in range(len(emails)):
-            col1, col2, col3 = st.columns([0.2, 5, 0.3])
-            with col1:
-                if st.checkbox(" ", key=f"email_{i}"):
-                    selected_email_indices.append(i)
-            with col2:
-                st.write(f"**{emails[i]['from']}**")
-                st.write(f"{emails[i]['date']['month']} {emails[i]['date']['day']}")
-                st.write(emails[i]["subject"])
-                st.write(emails[i].get("snippet", ""))
-            with col3:
-                pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""
-                spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
-                st.write(f"{pdf_icon} {spreadsheet_icon}")
-            st.write("---")
+            expander_title = f"{emails[i]['subject']} - From: {emails[i]['from']}"
+            with st.expander(expander_title, expanded=False):
+                st.write(f"Date: {emails[i]['date']['month']} {emails[i]['date']['day']}")
+                st.write(emails[i].get("body", ""))
 
-    # Email details section
-    st.header("Email Details")
-    selected_email = st.empty()
-
-    # Display selected email details
-    with selected_email.container():
-        if selected_email_indices:
-            emails = st.session_state["emails"]
-            num_columns = 2
-            num_rows = (len(selected_email_indices) + num_columns - 1) // num_columns
-            for row in range(num_rows):
-                columns = st.columns(num_columns)
-                for col in range(num_columns):
-                    index = row * num_columns + col
-                    if index < len(selected_email_indices):
-                        email_index = selected_email_indices[index]
-                        with columns[col]:
-                            st.write(f"Email {email_index+1} Details")
-                            st.write(f"From: {emails[email_index]['from']}")
-                            st.write(f"Subject: {emails[email_index]['subject']}")
-                            show_full_email = st.checkbox(f"Show Full Email {email_index+1}", key=f"show_full_email_{email_index}")
-                            if show_full_email:
-                                st.write(emails[email_index].get("body", ""))
-                                if email_index % 2 == 0:
-                                    st.write(":page_facing_up: PDF Attachment")
-                                if email_index % 3 == 0:
-                                    st.write(":bar_chart: Spreadsheet Attachment")
-                            st.write("---")
-        else:
-            st.write("Select emails to view their details.")
-
-    # LLM section
-    st.header("LLM Processing")
-    selected_emails = st.empty()
-
-    # Placeholder for selected emails
-    with selected_emails.container():
-        if selected_email_indices:
-            st.write("Selected Emails for LLM Processing:")
-            for index in selected_email_indices:
-                st.write(f"Email {index+1}")
-        else:
-            st.write("No emails selected for LLM processing.")
-
-    process_button = st.button("Process with LLM")
-    if process_button:
-        if selected_email_indices: 
-            st.info("Processing emails with LLM...")
-            # Add your LLM processing logic here
-            st.success("LLM processing completed!")
-        else:
-            st.error("Please select atleast one email")
+                col1, col2 = st.columns([5, 0.3])
+                with col1:
+                    st.write("---")
+                    option = st.radio("Select an option", ("Option 1", "Option 2", "Option 3", "Option 4"), key=f"option_{i}")
+                    query = st.text_input("Enter a query", key=f"query_{i}")
+                    if st.button("Process", key=f"process_button_{i}"):
+                        # Add your LLM processing logic here based on the selected option and query
+                        st.success("LLM processing completed!")
+                with col2:
+                    pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""
+                    spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
+                    st.write(f"{pdf_icon} {spreadsheet_icon}")
 
 else:
     st.info("Please log in to access your Gmail inbox.")
