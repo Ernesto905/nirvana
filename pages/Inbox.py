@@ -1,6 +1,7 @@
 import streamlit as st
 from gmail.messages import get_messages
 from jira.authentication import *
+import re
 # Set page title and favicon
 st.set_page_config(page_title="Gmail Wrapper", page_icon=":email:", layout="wide")
 
@@ -81,23 +82,38 @@ if logged_in:
 
                     with col1:
 
-                        if st.button("Send req"):
-                            # Make a POST request to the Flask API to get the actions
+                        if st.button("Send req", key=f"send_button_{i}"):
                             payload = {
                                 "email": emails[i].get("body", ""),
                                 "jira-cloud-id": cloud_id,
                                 "jira-auth-token": access_token
                             }
                             response = requests.post("http://localhost:5000/v1/jira/actions", json=payload)
-                            st.info(f"response {response}")
-                            st.info(f"response was {response.text} with status code {response.status_code}")
+                            data = response.json()
+                            actions = data["actions"]
+
+                            if contents:
+                                st.session_state["executable_code"] = contents[0]
+                                print("Executable Python code:", st.session_state["executable_code"])
+                            else:
+                                print("No executable Python code found.")
                     
                         st.write("---")
                         option = st.radio("Select an option", ("Option 1", "Option 2", "Option 3", "Option 4"), key=f"option_{i}")
                         query = st.text_input("Enter a query", key=f"query_{i}")
                         if st.button("Process", key=f"process_button_{i}"):
-                            # Add your LLM processing logic here based on the selected option and query
+                            payload = {
+                                "action": st.session_state["executable_code"],
+                                "jira-cloud-id": cloud_id,
+                                "jira-auth-token": access_token
+                            }
+                            response = requests.post("http://localhost:5000/v1/jira/execute", json=payload)
+                            st.info("Response: ", response.text)
+                            st.info("Response code: ", response.status_code)
+
+
                             st.success("LLM processing completed!")
+
                     with col2:
                         pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""
                         spreadsheet_icon = ":bar_chart:" if i % 3 == 0 else ""
