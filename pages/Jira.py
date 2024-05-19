@@ -92,10 +92,10 @@ else:
         # Attempt to create an issue using the provided inputs.
         try:
             # Convert the username to a user ID.
-            user_id = client.get_userid_by_name(username)
+            if username:
+                username = client.get_userid_by_name(username)
 
-            print(f"due date is {due_date}")
-            result = client.create_issue(project, summary, description, user_id, priority, issue_type, due_date, labels)
+            result = client.create_issue(project, summary, description, username, priority, issue_type, due_date, labels)
             st.success("Issue created successfully! Issue ID: " + str(result))
         except Exception as e:
             if str(e) == "list index out of range":
@@ -106,21 +106,27 @@ else:
 
 
     st.subheader("Jira Issue updater")
-    """issue, due_date, assignee, status, priority"""
     # UI elements for user inputs.
     issue = st.text_input("Issue title")
     username = st.text_input("Assignee")
-    priority = st.selectbox("Select Priority", options=["Low", "Medium", "High", "Highest", "null"])
+    priority = st.selectbox("Select Priority", options=["Low", "Medium", "High", "Highest"], key="updater")
     status = st.selectbox("Select a status for this issue", options=["To Do", "In Progress", "Done"])
-    # due_date = st.date_input("Select a due date:")
-    due_date = "2024-10-10"
+    due_date = st.date_input("Select a due date:", key="Update")
+
+
+
+    # Format the date as YYYY-MM-DD
+    if due_date is not None:
+        formatted_date = due_date.strftime('%Y-%m-%d')
+        due_date = formatted_date
 
     if st.button("Update Issue"):
         # Attempt to create an issue using the provided inputs.
         try:
             # Convert the username to a user ID.
-            user_id = client.get_userid_by_name(username)
-            result = client.update_issue(issue, due_date, user_id, status, priority)
+            if username:
+                username = client.get_userid_by_name(username)
+            result = client.update_issue(issue, due_date, username, status, priority)
             st.success("Issue updated successfully! Issue: " + str(result))
         except Exception as e:
             if str(e) == "list index out of range":
@@ -128,32 +134,3 @@ else:
             else: 
                 st.error("Failed to create issue: " + str(e))
 
-    # Testing
-    if st.button("get transitions"):
-        try:
-            transitions = client.get_transitions()
-            st.success(f"Transitions obtained: {transitions}")
-        except Exception as e:
-            st.error(f"Failed to get transitions: {e}")
-
-    if st.button("get proje"):
-        try:
-            projs = client.projects()
-            st.success(f"issues obtained: {projs}")
-        except Exception as e:
-            st.error(f"Failed to get projects: {e}")
-
-
-    if st.button("get issues"):
-        try:
-            issues = client.get_all_issues()
-            st.success(f"issues obtained: {type(issues)}")
-        except Exception as e:
-            st.error(f"Failed to get projects: {e}")
-
-    if st.button("Get params"):
-        try:
-            all = client.get_allowed_params()
-            st.success(f"params: {all}")
-        except Exception as e:
-            st.error(f"Failed: {e}")
