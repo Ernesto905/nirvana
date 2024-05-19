@@ -18,7 +18,10 @@ def chat():
     user_message = data.get('message')
 
     token = data.get('google-auth-token')
-    user_email = address_from_creds(token)
+    try:
+        user_email = address_from_creds(token)
+    except Exception as e:
+        return jsonify({"status": 500, "response": str(e)})
 
     try:
         user_message = user_message.strip()
