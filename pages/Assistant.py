@@ -1,13 +1,13 @@
 import streamlit as st
-import replicate
-import os
-from transformers import AutoTokenizer
-
-from SQL.parse import extract_sql
 from SQL.manager import RdsManager 
 
 import json
 import requests
+import regex as re
+
+from PIL import Image
+from io import BytesIO
+import base64
 
 # App title
 st.set_page_config(
@@ -58,21 +58,6 @@ def display_chat_messages():
             st.write(message["content"])
 
 
-@st.cache_resource(show_spinner=False)
-def get_tokenizer():
-    """Get a tokenizer to make sure we're not sending too much text
-    text to the Model. Eventually we will replace this with ArcticTokenizer
-    """
-    return AutoTokenizer.from_pretrained("huggyllama/llama-7b")
-
-
-def get_num_tokens(prompt):
-    """Get the number of tokens in a given prompt"""
-    tokenizer = get_tokenizer()
-    tokens = tokenizer.tokenize(prompt)
-    return len(tokens)
-
-
 def abort_chat(error_message: str):
     """Display an error message requiring the chat to be cleared.
     Forces a rerun of the app."""
@@ -93,8 +78,19 @@ def get_and_process_prompt(db):
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant", avatar="./public/Nirvana.png"):
-            response = generate_arctic_response()
+            with st.spinner("Generating response..."):
+                response = generate_arctic_response()
+            image_exists = False
+            if "<img src='data:image/png;base64, " in response:
+                img_tag = re.findall(r"<img src='data:image/png;base64, (.*?)' />", response)[0]
+                response = re.sub(r"<img src='data:image/png;base64, (.*?)' />", "", response)
+                image_exists = True
+                img = Image.open(BytesIO(base64.b64decode(img_tag)))
+
+            st.session_state.messages.append({"role": "assistant", "content": response})
             st.write(response)
+            if image_exists:
+                st.image(img, use_column_width=True)
 
 
     if st.session_state.chat_aborted:
@@ -103,10 +99,6 @@ def get_and_process_prompt(db):
     elif prompt := st.chat_input():
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
-
-    if "generated_sql" in st.session_state:
-        if st.button("Execute SQL"):
-            db.execute_sql(st.session_state.generated_sql)
 
 def generate_arctic_response():
     """String generator for the Snowflake Arctic response."""
@@ -140,7 +132,7 @@ def generate_arctic_response():
     response = response["response"]
 
     if "<viz encoding=" in response:
-        response = response.replace("<viz encoding=", "<img src='data:image/png;base64,")
+        response = response.replace("<viz encoding=", "<img src='data:image/png;base64, ")
         response = response.replace(">", "' />")
 
     return response

@@ -486,9 +486,9 @@ class ChatArctic:
             name='Data Visualizer',
             func=lambda x : generate_visualization(re.sub("(```json|```)", "", x)),
             description="""Given a list where the first index is a natural language request for the visualizer in a string format, and the second index contains the data to visualize inside a valid JSON, creates a visualization and saves it locally.  
-            Make sure your JSON is actually valid (e.g. only double quotes, put null instead of None, etc.)
+            Make sure your JSON is actually valid (e.g. only double quotes, put null instead of None, etc.) Try to simplify the JSON as much as possible before passing it to the tool to avoid errors.
             The request should be specific enough to generate a meaningful visualization. Assumes only one visualization is needed. 
-            If there are errors, re-prompt with additional information to help avoid errors again.
+            If there are errors, re-prompt with additional information to help avoid errors again. Keep requests basic, assume only matplotlib and seaborn are available.
             """
         )
 
@@ -520,7 +520,7 @@ class ChatArctic:
                             If you need to generate a visualization, you likely need to execute a query to get the data you need to visualize.
                             Then, you can use the data to generate the visualization. If the function returns a success, you can assume we have the visualization.
                             Along with any other text you may need to respond with, you can include the visualization in your response to the user like so: "<viz>".
-                            You can assume that in a post-processing step, the <viz> will be converted to an actual image.
+                            You can assume that in a post-processing step, the <viz> will be converted to an actual image that will be displayed below your text response.
 
                             For context, this is what the database tables and columns currently look like:
                             {metadata}
