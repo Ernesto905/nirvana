@@ -19,6 +19,11 @@ try:
     gmail_uuid = cookie_controller.get('gmail_uuid')
 except TypeError:
     pass
+jira_uuid = None
+try:
+    jira_uuid = cookie_controller.get('jira_uuid')
+except TypeError:
+    pass
 
 # Inbox section
 if gmail_uuid and gmail_credentials_exists(gmail_uuid):
@@ -85,12 +90,10 @@ if gmail_uuid and gmail_credentials_exists(gmail_uuid):
                 col1, col2 = st.columns([5, 0.3])
 
 
-                if 'access_token' not in st.session_state:
+                if not jira_uuid and not jira_access_token_exists(jira_uuid):
                     st.info("Please authenticate with Jira to enable LLM functionality")
-                else: 
-
-                    access_token = st.session_state['access_token']
-                    cloud_id = get_cloudid(access_token)
+                else:
+                    access_token, cloud_id = get_jira_access_token_and_cloudid(jira_uuid)
 
                     with col1:
 
@@ -109,7 +112,6 @@ if gmail_uuid and gmail_credentials_exists(gmail_uuid):
                             st.info(f"{actions[0]}")
 
 
-                    
                         st.write("---")
                         if st.button("Process", key=f"process_button_{i}"):
                             payload = {
