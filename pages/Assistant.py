@@ -1,10 +1,13 @@
 import streamlit as st
-import replicate
-import os
-from transformers import AutoTokenizer
-
-from SQL.parse import extract_sql
 from SQL.manager import RdsManager 
+
+import json
+import requests
+import regex as re
+
+from PIL import Image
+from io import BytesIO
+import base64
 
 # App title
 st.set_page_config(
@@ -23,20 +26,17 @@ def main():
         email = "ernesto90543@gmail.com"
         db.create_user_schema(email)
         db.switch_user_schema(email)
-        get_replicate_api_token()
+        # get_replicate_api_token()
         init_chat_history()
         display_chat_messages()
         get_and_process_prompt(db)
-
-def get_replicate_api_token():
-    os.environ["REPLICATE_API_TOKEN"] = st.secrets.api["REPLICATE_API_TOKEN"]
 
 
 def clear_chat_history():
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Please describe your data format and I'll generate a postgres sql table for you.",
+            "content": "Hey, I'm ChatNirvana! How can I help? Ask me anything about your data.",
         }
     ]
     st.session_state.chat_aborted = False
@@ -50,27 +50,12 @@ def init_chat_history():
 
 def display_chat_messages():
     # Set assistant icon to Snowflake logo
-    icons = {"assistant": "./public/PSQL.webp", "user": "⛷️"}
+    icons = {"assistant": "./public/Nirvana.png", "user": "⛷️"}
 
     # Display the messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"], avatar=icons[message["role"]]):
             st.write(message["content"])
-
-
-@st.cache_resource(show_spinner=False)
-def get_tokenizer():
-    """Get a tokenizer to make sure we're not sending too much text
-    text to the Model. Eventually we will replace this with ArcticTokenizer
-    """
-    return AutoTokenizer.from_pretrained("huggyllama/llama-7b")
-
-
-def get_num_tokens(prompt):
-    """Get the number of tokens in a given prompt"""
-    tokenizer = get_tokenizer()
-    tokens = tokenizer.tokenize(prompt)
-    return len(tokens)
 
 
 def abort_chat(error_message: str):
@@ -92,10 +77,21 @@ def get_and_process_prompt(db):
     """Get the user prompt and process it"""
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
-        with st.chat_message("assistant", avatar="./public/PSQL.webp"):
-            response = generate_arctic_response()
-            st.write_stream(response)
-        
+        with st.chat_message("assistant", avatar="./public/Nirvana.png"):
+            with st.spinner("Generating response..."):
+                response = generate_arctic_response()
+            image_exists = False
+            if "<img src='data:image/png;base64, " in response:
+                img_tag = re.findall(r"<img src='data:image/png;base64, (.*?)' />", response)[0]
+                response = re.sub(r"<img src='data:image/png;base64, (.*?)' />", "", response)
+                image_exists = True
+                img = Image.open(BytesIO(base64.b64decode(img_tag)))
+
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.write(response)
+            if image_exists:
+                st.image(img, use_column_width=True)
+
 
     if st.session_state.chat_aborted:
         st.button("Reset chat", on_click=clear_chat_history, key="clear_chat_history")
@@ -104,56 +100,44 @@ def get_and_process_prompt(db):
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
 
-    if "generated_sql" in st.session_state:
-        if st.button("Execute SQL"):
-            db.execute_sql(st.session_state.generated_sql)
-
 def generate_arctic_response():
     """String generator for the Snowflake Arctic response."""
     prompt = []
     for dict_message in st.session_state.messages:
         if dict_message["role"] == "user":
-            prompt.append("<|im_start|>user\n" + dict_message["content"] + "<|im_end|>")
+            prompt.append("User: " + dict_message["content"])
         else:
             prompt.append(
-                "<|im_start|>assistant\n" + dict_message["content"] + "<|im_end|>"
+                "Assistant: " + dict_message["content"]
             )
 
-    prompt.append("<|im_start|>assistant")
-    prompt.append("")
+    prompt.append("Assistant: ")
     prompt_str = "\n".join(prompt)
 
-    num_tokens = get_num_tokens(prompt_str)
-    max_tokens = 1500
+    with open("token.json", "r") as f:
+        token = json.load(f)
+        print(token)
 
-    if num_tokens >= max_tokens:
-        abort_chat(
-            f"Conversation length too long. Please keep it under {max_tokens} tokens."
-        )
+    body = {
+        "message": prompt_str,
+        "google-auth-token": token
+    }
 
-    st.session_state.messages.append({"role": "assistant", "content": ""})
+    response = requests.post("http://localhost:5000/v1/chat", json=body).json()
 
-    for event_index, event in enumerate(
-        replicate.stream(
-            "snowflake/snowflake-arctic-instruct",
-            input={
-                "prompt": prompt_str,
-                "prompt_template": r"{prompt}",
-                "temperature": 0.3,
-                "top_p": 0.9,
-            },
-        )
-    ):
-        st.session_state.messages[-1]["content"] += str(event)
-        yield str(event)
+    if response["status"] != 200:
+        st.error(f"""Error processing chat message: {response["response"]}""")
+        # abort_chat(response["response"])
 
-    content = st.session_state.messages[-1]["content"]
-    sql = extract_sql(content)
+    response = response["response"]
 
-    if sql:
-        st.write("Generated SQL:")
-        st.code(sql, language="sql")
-        st.session_state.generated_sql = sql  
+    if "<viz encoding=" in response:
+        response = response.replace("<viz encoding=", "<img src='data:image/png;base64, ")
+        response = response.replace(">", "' />")
+
+    return response
+
+    # content = st.session_state.messages[-1]["content"]
 
 if __name__ == "__main__":
     main()

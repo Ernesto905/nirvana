@@ -30,6 +30,6 @@ def process_chat(user_message: str, user_email: str) -> str:
             with open("visualization.png", "rb") as f:
                 viz = base64.b64encode(f.read()).decode("utf-8")
             os.remove("visualization.png") # Remove the file after reading it
-            response = re.sub(r"<viz>", f"""<viz encoding="{viz}">""", response)
+            response = re.sub(r"<viz>", f"""<viz encoding={viz}>""", response)
 
         return response
