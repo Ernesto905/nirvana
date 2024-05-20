@@ -1,30 +1,35 @@
 import base64
 import re
 
+from gmail import get_gmail_credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 
-def get_messages(session, maxResults=10, page_number=1, query=""):
+def get_messages(gmail_uuid, session, maxResults=10, page_number=1, query=""):
     try:
-        service = build("gmail", "v1", credentials=session.creds)
-
-        page_id = get_page_id(service, session, maxResults, page_number, query)
+        creds = get_gmail_credentials(gmail_uuid)
+        service = build("gmail", "v1", credentials=creds)
 
         # Get Email IDs
-        results = (
-            service
-            .users()
-            .messages()
-            .list(
+        messages = service.users().messages()
+        request = (
+            messages.list(
                 userId="me",
                 maxResults=maxResults,
                 q=query,
-                pageToken=page_id,
                 includeSpamTrash=False
-            ).execute()
+            )
         )
 
+        count = 1
+        results = None
+        while request is not None and count < page_number:
+            results = request.execute()
+            request = messages.list_next(request, results)
+            count += 1
+
+        results = request.execute()
         message_ids = results.get("messages", [])
 
         if not message_ids:
@@ -66,47 +71,6 @@ def get_messages(session, maxResults=10, page_number=1, query=""):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return []
-
-
-def get_page_id(service, session, maxResults, page_number, query):
-    if page_number == 1:
-        return ""
-
-    email_pages = session.get("email_pages", {})
-    page_id = email_pages.get((maxResults, page_number), "")
-    if len(page_id):
-        return page_id
-
-    try:
-        counter = 1
-        prev_page_id = ""
-        while counter != page_number:
-            prev_page_id = page_id
-            page_id = email_pages.get((maxResults, counter), None)
-            if page_id:
-                counter += 1
-                continue
-
-            results = (
-                service
-                .users()
-                .messages()
-                .list(
-                    userId="me",
-                    maxResults=maxResults,
-                    q=query,
-                    pageToken=prev_page_id,
-                    includeSpamTrash=False
-                ).execute()
-            )
-
-            page_id = results.get("nextPageToken")
-            email_pages[(maxResults, counter)] = page_id
-            counter += 1
-        return page_id
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return ""
 
 
 def get_body_text(payload: dict) -> str:
@@ -177,7 +141,13 @@ def parse_date(date: str) -> dict:
     expression = r"^(?P<day_of_week>\w{3}),\s+(?P<day>\d{1,2})\s+(?P<month>\w+)\s+(?P<year>\d+)\s+(?P<time>.*)$"
     search_result = re.search(expression, date)
     if not search_result:
-        return {}
+        return {
+            "day_of_week": "",
+            "day": "",
+            "month": "",
+            "year": "",
+            "time": ""
+        }
     result = search_result.groupdict()
     result["day"] = int(result["day"])
     result["year"] = int(result["year"])

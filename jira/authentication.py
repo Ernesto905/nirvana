@@ -1,12 +1,16 @@
 import os
-import json
+import uuid
+import redis
 import secrets
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-def get_authorization_url():
+redis_client = redis.Redis(host='redis-app', port=6379, db=0)
+
+
+def get_jira_authorization_url():
     scopes = ['read%3Ajira-work', 'manage%3Ajira-project', 'manage%3Ajira-configuration', 'write%3Ajira-work']
     state = secrets.token_urlsafe(16)
 
@@ -14,7 +18,8 @@ def get_authorization_url():
 
     return authorization_url, state
 
-def get_access_token(code):
+
+def generate_jira_access_token(code):
     token_url = 'https://auth.atlassian.com/oauth/token'
     data = {
         'grant_type': 'authorization_code',
@@ -28,14 +33,20 @@ def get_access_token(code):
         'Content-Type': 'application/json'
     }
 
-
     response = requests.post(token_url, json=data, headers=headers)
     response.raise_for_status()
     access_token = response.json()['access_token']
 
-    return access_token
+    id = str(uuid.uuid4())
+    redis_client.set(id, access_token, ex=3600)
+    return id
 
-def get_cloudid(access_token):
+
+def get_jira_access_token_and_cloudid(id):
+    access_token = redis_client.get(id)
+    if not access_token:
+        return None, None
+    access_token = access_token.decode('utf-8')
     resource_url = "https://api.atlassian.com/oauth/token/accessible-resources"
     headers = {
         'Accept': 'application/json',
@@ -48,7 +59,13 @@ def get_cloudid(access_token):
     # Bit of a misnomer. response_json type is actually a list
     response_json = response.json()
 
-    return response_json[0]["id"]
+    return access_token, response_json[0]["id"]
 
 
-    
+def jira_access_token_exists(id):
+    access_token = redis_client.get(id)
+    return access_token is not None
+
+
+def logout_jira(id):
+    redis_client.delete(id)

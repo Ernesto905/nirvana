@@ -3,6 +3,17 @@ import pandas as pd
 from SQL.manager import RdsManager
 import json 
 
+from jira import jira_access_token_exists, get_jira_access_token_and_cloudid, JiraClient
+from streamlit_cookies_controller import CookieController
+
+cookie_controller = CookieController()
+
+jira_uuid = None
+try:
+    jira_uuid = cookie_controller.get('jira_uuid')
+except TypeError:
+    pass
+
 
 def display_tables(db):
 
@@ -47,10 +58,11 @@ with RdsManager(st.secrets.db_credentials.HOST,
 
     # Check for Jira Auth
     if st.button("sync with Jira"):
-        if 'access_token' not in st.session_state:
+        if not jira_uuid or not jira_access_token_exists(jira_uuid):
             st.error("please authenticate with jira before continuing.")
         else:
-            client = st.session_state.JiraClient
+            access_token, cloudid = get_jira_access_token_and_cloudid(jira_uuid)
+            client = JiraClient(cloudid=cloudid, access_token=access_token)
             
             with st.spinner("syncing Jira data..."):
                 try:

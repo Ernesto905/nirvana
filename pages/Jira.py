@@ -2,14 +2,21 @@ import streamlit as st
 import json 
 from jira.authentication import *
 from jira.client import JiraClient
+from streamlit_cookies_controller import CookieController
+
+cookie_controller = CookieController()
+
+jira_uuid = None
+try:
+    jira_uuid = cookie_controller.get('jira_uuid')
+except TypeError:
+    pass
 
 # Check if the user has already authenticated
-if 'access_token' not in st.session_state:
+if not jira_uuid or not jira_access_token_exists(jira_uuid):
     st.info("Please authenticate with Jira to continue.")
 else:
-    access_token = st.session_state['access_token']
-    cloud_id = get_cloudid(access_token)
-
+    access_token, cloud_id = get_jira_access_token_and_cloudid(jira_uuid)
     st.session_state.JiraClient = JiraClient(cloud_id, access_token)
     client = st.session_state.JiraClient
 
