@@ -1,9 +1,57 @@
-from flask import Blueprint, request, jsonify
+import os
+import uuid
+import redis
+import secrets
+import requests
+from dotenv import load_dotenv
+from flask import Blueprint, request, jsonify, url_for, redirect
 from backend.v1.jira.service import generate_actions, execute_action
 from backend.v1.auth import jira_auth_required
 from jira import JiraClient
 
 bp = Blueprint('jira', __name__, url_prefix='/jira')
+
+load_dotenv()
+
+redis_client = redis.Redis(host='redis-app', port=6379, db=0)
+
+
+@bp.route('/authorize', methods=['GET'])
+def authorize():
+    scopes = ['read%3Ajira-work', 'manage%3Ajira-project', 'manage%3Ajira-configuration', 'write%3Ajira-work']
+    state = secrets.token_urlsafe(16)
+
+    authorization_url = f"""https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id={os.getenv('JIRA_CLIENT_ID')}&scope={scopes[0]}%20{scopes[1]}%20{scopes[2]}%20{scopes[3]}&redirect_uri={url_for('.oauth2callback', _external=True)}&state={state}&response_type=code&prompt=consent"""
+    authorization_url = authorization_url.replace('flask-app', 'localhost')
+
+    return {'authorization_url': authorization_url, 'state': state}
+
+
+@bp.route('/oauth2callback', methods=['GET'])
+def oauth2callback():
+    data = request.get_json()
+    code = data.get('code')
+    token_url = 'https://auth.atlassian.com/oauth/token'
+    data = {
+        'grant_type': 'authorization_code',
+        'client_id': os.getenv('JIRA_CLIENT_ID'),
+        'client_secret': os.getenv('JIRA_CLIENT_SECRET'),
+        'code': code,
+        'redirect_uri': "http://localhost:8501"
+    }
+
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
+    response = requests.post(token_url, json=data, headers=headers)
+    response.raise_for_status()
+    access_token = response.json()['access_token']
+
+    id = str(uuid.uuid4())
+    redis_client.set(id, access_token, ex=3600)
+    return redirect(f"http://localhost:8501/?jira_uuid={id}")
+
 
 @bp.route('/actions', methods=['POST'])
 @jira_auth_required

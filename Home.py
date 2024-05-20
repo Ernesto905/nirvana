@@ -78,7 +78,11 @@ if gmail_uuid:
     cookie_controller.set('gmail_uuid', gmail_uuid)
     time.sleep(SLEEP_TIME)
     st.query_params.clear()
-jira_uuid = None
+jira_uuid = st.query_params.get('jira_uuid')
+if jira_uuid:
+    cookie_controller.set('jira_uuid', jira_uuid)
+    time.sleep(SLEEP_TIME)
+    st.query_params.clear()
 
 try:
     gmail_uuid = cookie_controller.get('gmail_uuid')
@@ -88,12 +92,6 @@ except TypeError:
 
 
 col1, col2 = st.columns(2, gap="large")  # Adjust the column widths here
-
-scope = st.query_params.get('scope')
-code = st.query_params.get('code')
-jira_clicked = False
-if code and not scope:
-    jira_clicked = True
 
 with col1:
     if not gmail_uuid or not gmail_credentials_exists(gmail_uuid):
@@ -111,24 +109,13 @@ with col1:
 
 with col2:
     if not jira_uuid or not jira_access_token_exists(jira_uuid):
-        if jira_clicked:
-            authorization_code = st.query_params['code']
-            st.query_params.clear()
-            id = generate_jira_access_token(authorization_code)
-            print(id)
-            if id:
-                cookie_controller.set('jira_uuid', id)
-                time.sleep(SLEEP_TIME)
-            st.query_params.clear()
-            st.rerun()
-        else:
-            authorization_url, state = get_jira_authorization_url()
+        response = requests.get("http://flask-app:5000/v1/jira/authorize").json()
+        authorization_url = response.get('authorization_url')
+        state = response.get('state')
 
-            # Display the button with custom styling
-            button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button" id="jira_button">Authenticate Jira :key:</button></a>'
-            st.markdown(button_html, unsafe_allow_html=True)
-            cookie_controller.set('jira_state', state)
-            time.sleep(SLEEP_TIME)
+        # Display the button with custom styling
+        button_html = f'<a href="{authorization_url}" target="_self"><button class="custom-button" id="jira_button">Authenticate Jira :key:</button></a>'
+        st.markdown(button_html, unsafe_allow_html=True)
     else:
         jira_inauth = st.button("Logout from Jira")
         if jira_inauth:
