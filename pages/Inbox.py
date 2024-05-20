@@ -109,7 +109,33 @@ if gmail_uuid and gmail_credentials_exists(gmail_uuid):
                             actions = data["actions"]
                             actions = ast.literal_eval(actions)
                             st.session_state["actions"] = actions
-                            st.info(f"{actions[0]}")
+                            # st.info(f"{actions[0]}")
+                            for action in actions:
+                                if "create_issue" in action:
+                                    # get the project and summary
+                                    # project is after "project=" or "project ="
+                                    # summary is after "summary=" or "summary ="
+                                    project = re.search(r'project\s*=\s*([^\s,]+)', action).group(1)
+                                    summary = re.search(r'summary\s*=\s*([^\s,]+)', action).group(1)
+                                    project = re.sub("(\"|')", "", project)
+                                    summary = re.sub("(\"|')", "", summary)
+                                    st.write(f"Create Issue: {project} - {summary}")
+                                if "update_issue" in action:
+                                    # get the issue name
+                                    issue = re.search(r'issue\s*=\s*([^\s,]+)', action).group(1)
+                                    issue = re.sub("(\"|')", "", issue)
+
+                                    candidates = ["due_date", "assignee", "status", "priority"]
+                                    ls = []
+                                    for candidate in candidates:
+                                        if candidate in action:
+                                            value = re.search(f'{candidate}\s*=\s*([^\s,]+)', action).group(1)
+                                            value = re.sub("(\"|')", "", value)
+                                            ls.append(f"set {candidate} to {value}")
+
+                                    st.write(f"Update Issue {issue} to {', '.join(ls).strip(", ")}")
+
+                            # now we parse the action to show a list
 
 
                         st.write("---")
