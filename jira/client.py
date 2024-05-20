@@ -97,11 +97,14 @@ class JiraClient:
 
         project = self.get_project_key_by_name(project)
 
-        # print("Assignee is", assignee)
         try: 
             assignee = self.get_userid_by_name("ernesto enriquez")
         except: 
             assignee = None
+
+        if issue_type == None:
+            issue_type = "Story"
+
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json",

@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from SQL.manager import RdsManager
+import json 
 
 
 def display_tables(db):
@@ -44,9 +45,6 @@ with RdsManager(st.secrets.db_credentials.HOST,
     db.switch_user_schema("ernesto90543@gmail.com")          
     display_tables(db)
 
-    if st.button("show metadata"):
-        print("THE RETURN VAlUES ARE: ", db.get_metadata())
-    
     # Check for Jira Auth
     if st.button("sync with Jira"):
         if 'access_token' not in st.session_state:
@@ -61,13 +59,9 @@ with RdsManager(st.secrets.db_credentials.HOST,
                     tasks = client.search_with_jql("issuetype = task")
                     bugs = client.search_with_jql("issuetype = bug")
 
-                    print("Hello0")
-                    db.sync_jira(epics, 'epic')
-                    print("Hello1")
-                    db.sync_jira(tasks, 'task')
-                    print("Hello2")
-                    db.sync_jira(bugs, 'bug')
-                    print("Hello3")
+                    db.sync_jira(json.dumps(epics), 'epic')
+                    db.sync_jira(json.dumps(tasks), 'task')
+                    db.sync_jira(json.dumps(bugs), 'bug')
                     st.success("Jira data synced successfully!")
                 except Exception as e:
                     st.error(f"Failed to sync: {e}")
