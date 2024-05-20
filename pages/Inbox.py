@@ -97,6 +97,17 @@ if gmail_uuid and gmail_credentials_exists(gmail_uuid):
 
                     with col1:
 
+                        if st.button("Ingest", key=f"ingest_button_{i}"):
+                            payload = {
+                                "email": emails[i].get("body", ""),
+                                "google-auth-token": get_gmail_credentials(gmail_uuid),
+                            }
+                            response = requests.post("http://localhost:5000/v1/data", json=payload)
+                            if response["status"] == 200:
+                                st.success(f"Successfully ingested email.")
+                            else:
+                                st.error(f"Failed to ingest email. Error: {response['response']}")
+
                         if st.button("Get action", key=f"send_button_{i}"):
                             payload = {
                                 "email": emails[i].get("body", ""),
