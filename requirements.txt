@@ -21,3 +21,4 @@ matplotlib
 seaborn
 pandas 
 numpy 
+pillow
