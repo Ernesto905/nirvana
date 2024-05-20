@@ -1,8 +1,9 @@
 import sys
 
 import time
+import requests
 import streamlit as st
-from gmail import logout_gmail, get_gmail_auth_url, generate_gmail_access_token, gmail_credentials_exists
+from gmail import gmail_credentials_exists
 from jira import logout_jira, get_jira_authorization_url, get_jira_access_token_and_cloudid, jira_access_token_exists, generate_jira_access_token
 from streamlit_cookies_controller import CookieController
 
@@ -61,8 +62,13 @@ st.write("Seamlessly integrate emails, Jira, and SQL databases for streamlined p
 
 st.subheader("Authentication")
 
-gmail_uuid = None
+gmail_uuid = st.query_params.get('gmail_uuid')
+if gmail_uuid:
+    cookie_controller.set('gmail_uuid', gmail_uuid)
+    time.sleep(SLEEP_TIME)
+    st.query_params.clear()
 jira_uuid = None
+
 try:
     gmail_uuid = cookie_controller.get('gmail_uuid')
     jira_uuid = cookie_controller.get('jira_uuid')
@@ -73,9 +79,6 @@ except TypeError:
 col1, col2 = st.columns(2, gap="large")  # Adjust the column widths here
 
 scope = st.query_params.get('scope')
-gmail_clicked = False
-if scope and 'google' in scope:
-    gmail_clicked = True
 code = st.query_params.get('code')
 jira_clicked = False
 if code and not scope:
@@ -83,30 +86,14 @@ if code and not scope:
 
 with col1:
     if not gmail_uuid or not gmail_credentials_exists(gmail_uuid):
-        if gmail_clicked:
-            state = cookie_controller.get('gmail_state')
-            response_params = {
-                "state": st.query_params.get('state'),
-                "code": st.query_params.get('code'),
-                "scope": st.query_params.get('scope')
-            }
-            id = generate_gmail_access_token(response_params['state'], response_params)
-            if id:
-                cookie_controller.set('gmail_uuid', id)
-                time.sleep(SLEEP_TIME)
-            st.query_params.clear()
-            st.rerun()
-        else:
-            gmail_auth_url, gmail_state = get_gmail_auth_url()
-            button_html = f'<a href="{gmail_auth_url}" target="_self"><button class="custom-button">Authenticate Google :key:</button></a>'
-            st.markdown(button_html, unsafe_allow_html=True)
-            if gmail_state:
-                cookie_controller.set('gmail_state', gmail_state)
-                time.sleep(SLEEP_TIME)
+        response = requests.get("http://flask-app:5000/v1/gmail/authorize")
+        gmail_auth_url = response.text
+        button_html = f'<a href="{gmail_auth_url}" target="_self"><button class="custom-button">Authenticate Google :key:</button></a>'
+        st.markdown(button_html, unsafe_allow_html=True)
     else:
         logout_button = st.button("Logout from Google")
         if logout_button:
-            logout_gmail(gmail_uuid)
+            response = requests.post(f"http://flask-app:5000/v1/gmail/clear/{gmail_uuid}")
             cookie_controller.remove('gmail_uuid')
             time.sleep(SLEEP_TIME)
             st.rerun()
@@ -117,6 +104,7 @@ with col2:
             authorization_code = st.query_params['code']
             st.query_params.clear()
             id = generate_jira_access_token(authorization_code)
+            print(id)
             if id:
                 cookie_controller.set('jira_uuid', id)
                 time.sleep(SLEEP_TIME)
