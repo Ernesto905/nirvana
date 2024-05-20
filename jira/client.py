@@ -95,6 +95,13 @@ class JiraClient:
         """
         url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/{self.create_issue_path}"
 
+        project = self.get_project_key_by_name(project)
+
+        # print("Assignee is", assignee)
+        try: 
+            assignee = self.get_userid_by_name("ernesto enriquez")
+        except: 
+            assignee = None
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json",
@@ -144,12 +151,17 @@ class JiraClient:
             data["fields"]["issuetype"] = {
                 "name": issue_type
             }
+        else: 
+            data["fields"]["issuetype"] = {
+                "name": "Bug" 
+            }
+
 
         if labels:
             data["fields"]["labels"] = labels
 
         response = requests.post(url, headers=headers, json=data)
-        print(response.text)
+        print(f"ERROR\n\n{response.text}")
         response.raise_for_status()
 
         return response.json()
@@ -343,3 +355,12 @@ class JiraClient:
             output[project_name] = project_data
 
         return json.dumps(output)
+
+    def get_project_key_by_name(self, project_name):
+        projects = self.projects()
+
+        for project in projects:
+            if project['name'] == project_name:
+                return project['key']
+
+        return None

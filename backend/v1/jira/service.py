@@ -10,7 +10,7 @@ def generate_actions(email: str, client: JiraClient):
     funcs = """
         ["name: create_issue
         required params: project, summary, priority
-        optional params: description, assignee, duedate",
+        optional params: description, assignee, due_date",
         "name: update_issue
         required params: issue
         optional params: due_date, assignee, status, priority"]
@@ -23,8 +23,11 @@ def generate_actions(email: str, client: JiraClient):
 def execute_action(action, client: JiraClient):
 
     try:
+        print("\n\nTrying eval", f"client.{action}")
         eval("client." + action)
+        print("Did eval!")
     except Exception as e:
+        print(e)
         raise Exception(f"Error executing action during eval step: {e}")
 
     return

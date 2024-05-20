@@ -101,20 +101,16 @@ if logged_in:
                     
                         st.write("---")
                         if st.button("Process", key=f"process_button_{i}"):
-                            try:
-                                payload = {
-                                    "action": st.session_state["actions"],
-                                    "jira-cloud-id": cloud_id,
-                                    "jira-auth-token": access_token
-                                }
-                                response = requests.post("http://localhost:5000/v1/jira/execute", json=payload)
-                                st.info("Response: ", response.text)
-                                st.info("Response code: ", response.status_code)
-                                st.success("LLM processing completed!")
-                            except Exception as e:
-                                st.error(f"Error: {e}")
+                            payload = {
+                                "action": st.session_state["actions"][0],
+                                "jira-cloud-id": cloud_id,
+                                "jira-auth-token": access_token
+                            }
+                            response = requests.post("http://localhost:5000/v1/jira/execute", json=payload)
+                            st.success(f"Response: {response.text}")
 
 
+                            st.success("LLM processing completed!")
 
                     with col2:
                         pdf_icon = ":page_facing_up:" if len(emails[i]["pdf_ids"]) > 0 else ""

@@ -27,7 +27,7 @@ def login(session):
                 credentials_json = json.load(f)
                 credentials_json["web"]["client_secret"] = os.environ["GMAIL_CLIENT_SECRET"]
             flow = InstalledAppFlow.from_client_config(credentials_json, SCOPES)
-            creds = flow.run_local_server(port=0, authorization_prompt_message="")
+            creds = flow.run_local_server(port=8502, authorization_prompt_message="")
 
         # Save the credentials for the next run
         with open("token.json", "w") as token:

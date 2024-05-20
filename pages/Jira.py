@@ -134,3 +134,11 @@ else:
             else: 
                 st.error("Failed to create issue: " + str(e))
 
+    # Testing
+    if st.button("get proj"):
+        try:
+            project = client.get_project_key_by_name("Atlas")
+            st.success(f"Projeect obtained: {project}")
+        except Exception as e:
+            st.error(f"Failed to get proj: {e}")
+

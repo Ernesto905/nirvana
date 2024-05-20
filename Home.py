@@ -54,6 +54,17 @@ st.header("Nirvana")
 st.write("Unifying Projects and Breaking Silos")
 st.write("Seamlessly integrate emails, Jira, and SQL databases for streamlined project management.")
 
+with st.popover("Please read me!"):
+    url = "https://accounts.google.com/AccountChooser?service=mail&continue=https://mail.google.com/mail/"
+    formurl = "https://docs.google.com/forms/d/e/1FAIpQLSc5oZ2uzWDAqAKcyTZHbZpYcyvqEQzG42lFSzslSujQIMp4_w/viewform?usp=sf_link"
+    st.markdown("Please click and log into the following email account.")
+    st.markdown("check out this [link](%s)" % url)
+    st.code("ai.nirvana.example@gmail.com", language="python")
+    st.code("strongpassword100!!", language="python")
+    st.markdown("It is imperative that you do this. Because our app is so young, it does not meet the restriction of allowing external users to link their GMAIL accounts with us. Thank you for your cooperation 🚀")
+    st.markdown("When you auth with google make sure you use the nirvana example account. If you'd like us to add your email directly, please fill out the following form [link](%s)" % formurl)
+
+
 st.subheader("Authentication")
 logged_in = st.session_state.get("logged_in", False)
 
