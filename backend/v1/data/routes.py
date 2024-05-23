@@ -24,6 +24,6 @@ def ingest():
     # Process the chat message
     try: 
         ingest_data(email, user_email)
-        return jsonify({'status': 200, 'response': 'Data ingested successfully'})
+        return jsonify({'response': 'Data ingested successfully'}), 200
     except Exception as e:
-        return jsonify({'status': 500, 'response': f'Data ingestion failed due to the following exception: {e}'})
+        return jsonify({'response': f'Data ingestion failed due to the following exception: {e}'}), 500
