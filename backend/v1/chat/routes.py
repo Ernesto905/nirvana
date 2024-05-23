@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.chat.service import process_chat
 from backend.v1.auth import google_auth_required
-from backend.v1.gmail import address_from_creds
+from utils.gmail import address_from_creds
 
 bp = Blueprint('chat', __name__, url_prefix='/chat')
 
