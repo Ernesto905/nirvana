@@ -17,7 +17,7 @@ bp = Blueprint('gmail', __name__, url_prefix='/gmail')
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 load_dotenv()
 
-redis_client = redis.Redis(host='redis-app', port=6379, db=0)
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
 
 credentials_json = {
     "web": {

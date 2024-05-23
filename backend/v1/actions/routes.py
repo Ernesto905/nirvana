@@ -1,11 +1,10 @@
 from flask import Blueprint, request, jsonify
-from backend.v1.jira.service import generate_actions, execute_action
+from backend.v1.actions.service import generate_actions, execute_action, JiraClient
 from backend.v1.auth import jira_auth_required
-from jira import JiraClient
 
 bp = Blueprint('jira', __name__, url_prefix='/jira')
 
-@bp.route('/actions', methods=['POST'])
+@bp.route('/get', methods=['POST'])
 @jira_auth_required
 def actions():
     """

@@ -1,4 +1,4 @@
-from backend.v1.jira.routes import bp
+from backend.v1.llm import generate_actions as ga
 import requests
 import json
 
@@ -158,23 +158,6 @@ class JiraClient:
         response.raise_for_status()
 
         return response.json()
-
-    # def get_issue_metadata(self, project, issue_type):
-    #     url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/api/3/issue/createmeta/{project}/issuetypes/{issue_type}"
-    #
-    #     headers = {
-    #       "Accept": "application/json"
-    #     }
-    #
-    #     response = requests.get(url, headers=headers)
-    #     print(response.text)
-    #     response.raise_for_status()
-    #
-    #     data = response.json()
-    #     return data
-    #
-
-
 
 
     def update_issue(self, issue, due_date=None, assignee=None, status=None, priority=None):
@@ -357,3 +340,32 @@ class JiraClient:
                 return project['key']
 
         return None
+
+def generate_actions(email: str, client: JiraClient):
+    context = client.get_allowed_params()
+    context = json.loads(context)
+
+    funcs = """
+        ["name: create_issue
+        required params: project, summary, priority
+        optional params: description, assignee, due_date",
+        "name: update_issue
+        required params: issue
+        optional params: due_date, assignee, status, priority"]
+        """
+
+    actions = ga(email, context, funcs)
+
+    return actions
+
+def execute_action(action, client: JiraClient):
+
+    try:
+        print("\n\nTrying eval", f"client.{action}")
+        eval("client." + action)
+        print("Did eval!")
+    except Exception as e:
+        print(e)
+        raise Exception(f"Error executing action during eval step: {e}")
+
+    return
