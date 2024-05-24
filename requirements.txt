@@ -1,5 +1,3 @@
-streamlit
-streamlit-option-menu
 replicate
 transformers
 tensorflow
@@ -18,3 +16,8 @@ flask
 redis
 async_timeout
 streamlit_cookies_controller
+matplotlib
+seaborn
+pandas 
+numpy 
+pillow

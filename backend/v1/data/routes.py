@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.data.service import ingest_data
 from backend.v1.auth import google_auth_required
-from backend.v1.gmail import address_from_creds
+from utils.gmail import address_from_creds
 
 bp = Blueprint('data', __name__, url_prefix='/data')
 
@@ -24,6 +24,6 @@ def ingest():
     # Process the chat message
     try: 
         ingest_data(email, user_email)
-        return jsonify({'status': 200, 'response': 'Data ingested successfully'})
+        return jsonify({'response': 'Data ingested successfully'}), 200
     except Exception as e:
-        return jsonify({'status': 500, 'response': f'Data ingestion failed due to the following exception: {e}'})
+        return jsonify({'response': f'Data ingestion failed due to the following exception: {e}'}), 500

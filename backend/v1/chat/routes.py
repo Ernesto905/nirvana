@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from backend.v1.chat.service import process_chat
 from backend.v1.auth import google_auth_required
-from backend.v1.gmail import address_from_creds
+from utils.gmail import address_from_creds
 
 bp = Blueprint('chat', __name__, url_prefix='/chat')
 
@@ -18,7 +18,10 @@ def chat():
     user_message = data.get('message')
 
     token = data.get('google-auth-token')
-    user_email = address_from_creds(token)
+    try:
+        user_email = address_from_creds(token)
+    except Exception as e:
+        return jsonify({"response": str(e)}), 500
 
     try:
         user_message = user_message.strip()
@@ -27,6 +30,6 @@ def chat():
 
         # print(response_message) # DEBUG
 
-        return jsonify({"status": 200, "response": response_message})
+        return jsonify({"response": response_message}), 200
     except Exception as e:
-        return jsonify({"status": 500, "response": str(e)})
+        return jsonify({"response": str(e)}), 500
